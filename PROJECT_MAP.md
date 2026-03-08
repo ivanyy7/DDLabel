@@ -11,7 +11,9 @@
 - **`.github/workflows/`** — ci.yml (CI при push в main; зелёная галочка у коммитов).
 - **`docs/`** — справочные материалы: printer-xp365b.md (принтер XP-365B), **label-format.md** (формат этикетки 30×20 мм — название, даты ДД.ММ, время ЧЧ.ММ, символ ∞, две колонки).
 
-**Этап 1 (в работе):** появятся папки/файлы фронта (браузер), локального сервиса (Node.js, Express), справочника (данные), печати (ESC/POS). Структуру дополним при создании.
+**Этап 1 (в работе):**
+- **`server/`** — Node.js (Express): `index.js` (API печати), `labelBuilder.js` (шаблон этикетки по docs/label-format.md), ESC/POS через пакеты escpos и escpos-usb. Запуск: `npm start`. Порт 3001.
+- **`client/`** — React (Vite): одна страница с кнопкой «Печать тестовой этикетки», прокси `/api` на сервер. Запуск: `npm run dev`. Интерфейс: http://localhost:3000 (vite.config.js: port 3000, host: true). Читаемость карточки без расширений темы — явные цвета в App.css.
 
 ---
 
@@ -19,7 +21,7 @@
 
 - **План:** PLAN.md; промт для плана — PROMPT_PLAN.md.
 - **Стек Этапа 1:** фронт — браузер **React**, Web Speech API; бэкенд — Node.js (Express); печать — ESC/POS (Xprinter XP-365B по USB).
-- **Точки входа:** пока нет (сервис и фронт будут добавлены в рамках Этапа 1).
+- **Точки входа:** сервер — `server/index.js`; фронт — `client/` (Vite), вход — `index.html` → `src/main.jsx` → `App.jsx`.
 
 ---
 

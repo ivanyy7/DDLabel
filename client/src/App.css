@@ -1,0 +1,55 @@
+#root {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 2rem;
+  text-align: center;
+}
+
+.app h1 {
+  margin-bottom: 0.25rem;
+  color: inherit;
+}
+
+.subtitle {
+  margin-bottom: 2rem;
+  opacity: 0.9;
+}
+
+.card {
+  padding: 1.5rem;
+  background: #f0f0f0;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  color: #1a1a1a;
+}
+
+.card p,
+.card strong {
+  color: #1a1a1a;
+}
+
+.card button {
+  margin-top: 1rem;
+  padding: 0.6rem 1.2rem;
+  font-size: 1rem;
+  cursor: pointer;
+  color: #fff;
+  background-color: #1a1a1a;
+}
+
+.card button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.status {
+  font-size: 0.95rem;
+}
+
+.status.ok {
+  color: #0a0;
+}
+
+.status.error {
+  color: #c00;
+}

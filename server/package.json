@@ -1,0 +1,19 @@
+{
+  "name": "ddlabel-server",
+  "version": "0.1.0",
+  "description": "Локальный сервис DDLabel: разбор фразы, справочник, печать этикеток",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "escpos": "^3.0.0-alpha.6",
+    "escpos-usb": "^3.0.0-alpha.4",
+    "express": "^4.21.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
