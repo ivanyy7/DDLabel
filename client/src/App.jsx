@@ -1,7 +1,9 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import './App.css'
 
 const API_BASE = import.meta.env.VITE_API_URL || ''
+
+const SpeechRecognitionAPI = typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition)
 
 // Тестовые данные для мини-этапа 1
 const testLabel = {
@@ -15,6 +17,70 @@ function App() {
   const [loading, setLoading] = useState(false)
   const [phrase, setPhrase] = useState('')
   const [parsedResult, setParsedResult] = useState(null)
+  const [isListening, setIsListening] = useState(false)
+  const recognitionRef = useRef(null)
+
+  // Отправка фразы на разбор и печать (общая логика для кнопки и голоса)
+  const sendPhraseToPrint = async (text) => {
+    const trimmed = (text || '').trim()
+    if (!trimmed) return
+    setStatus(null)
+    setParsedResult(null)
+    setLoading(true)
+    try {
+      const res = await fetch(`${API_BASE}/api/print`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phrase: trimmed }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) {
+        setStatus({ type: 'ok', message: data.message || 'Этикетка отправлена на печать.' })
+      } else {
+        setStatus({ type: 'error', message: data.message || data.error || `Ошибка ${res.status}` })
+      }
+    } catch (err) {
+      setStatus({ type: 'error', message: 'Сервер недоступен.' })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleVoiceClick = () => {
+    if (!SpeechRecognitionAPI) {
+      setStatus({ type: 'error', message: 'Голосовой ввод не поддерживается в этом браузере (нужен Chrome/Edge).' })
+      return
+    }
+    if (isListening || loading) return
+
+    const Recognition = SpeechRecognitionAPI
+    const recognition = new Recognition()
+    recognition.lang = 'ru-RU'
+    recognition.continuous = false
+    recognition.interimResults = false
+    recognitionRef.current = recognition
+
+    recognition.onresult = (event) => {
+      const transcript = event.results[0][0].transcript
+      setPhrase(transcript)
+      sendPhraseToPrint(transcript)
+    }
+
+    recognition.onerror = (event) => {
+      const msg = event.error === 'not-allowed' ? 'Доступ к микрофону запрещён.' : `Ошибка распознавания: ${event.error}.`
+      setStatus({ type: 'error', message: msg })
+      setIsListening(false)
+    }
+
+    recognition.onend = () => {
+      setIsListening(false)
+      recognitionRef.current = null
+    }
+
+    setStatus(null)
+    setIsListening(true)
+    recognition.start()
+  }
 
   const handlePrintTest = async () => {
     setStatus(null)
@@ -39,32 +105,13 @@ function App() {
     }
   }
 
-  const handleParseAndPrint = async () => {
+  const handleParseAndPrint = () => {
     const text = (phrase || '').trim()
     if (!text) {
       setStatus({ type: 'error', message: 'Введите фразу.' })
       return
     }
-    setStatus(null)
-    setParsedResult(null)
-    setLoading(true)
-    try {
-      const res = await fetch(`${API_BASE}/api/print`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phrase: text }),
-      })
-      const data = await res.json().catch(() => ({}))
-      if (res.ok) {
-        setStatus({ type: 'ok', message: data.message || 'Этикетка отправлена на печать.' })
-      } else {
-        setStatus({ type: 'error', message: data.message || data.error || `Ошибка ${res.status}` })
-      }
-    } catch (err) {
-      setStatus({ type: 'error', message: 'Сервер недоступен.' })
-    } finally {
-      setLoading(false)
-    }
+    sendPhraseToPrint(text)
   }
 
   const handleParseOnly = async () => {
@@ -109,14 +156,17 @@ function App() {
           placeholder="Бекон слайс, изготовление вчера в 18:10"
           value={phrase}
           onChange={(e) => setPhrase(e.target.value)}
-          disabled={loading}
+          disabled={loading || isListening}
         />
         <div className="card-buttons">
-          <button onClick={handleParseOnly} disabled={loading}>
+          <button onClick={handleParseOnly} disabled={loading || isListening}>
             {loading ? '…' : 'Только разобрать'}
           </button>
-          <button onClick={handleParseAndPrint} disabled={loading}>
+          <button onClick={handleParseAndPrint} disabled={loading || isListening}>
             {loading ? 'Отправка…' : 'Разобрать и напечатать'}
+          </button>
+          <button onClick={handleVoiceClick} disabled={loading || isListening} className="voice-btn">
+            {isListening ? 'Слушаю…' : 'Голос'}
           </button>
         </div>
         {parsedResult && (
