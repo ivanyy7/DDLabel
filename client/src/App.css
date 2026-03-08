@@ -37,6 +37,41 @@
   background-color: #1a1a1a;
 }
 
+.card-buttons {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.card-buttons button {
+  margin-top: 0;
+}
+
+.phrase-input {
+  width: 100%;
+  max-width: 360px;
+  margin-top: 0.5rem;
+  padding: 0.5rem;
+  font-size: 1rem;
+  color: #1a1a1a;
+  background: #fff;
+  border: 1px solid #999;
+  border-radius: 4px;
+  box-sizing: border-box;
+}
+
+.phrase-input::placeholder {
+  color: #555;
+}
+
+.parsed-info {
+  margin-top: 1rem;
+  font-size: 0.9rem;
+  text-align: left;
+}
+
 .card button:disabled {
   opacity: 0.7;
   cursor: not-allowed;

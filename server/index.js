@@ -1,6 +1,7 @@
 /**
  * Локальный сервис DDLabel.
- * API: POST /api/print — печать этикетки (тело: productName, madeAt, expiresAt).
+ * API: POST /api/print — печать этикетки (тело: productName, madeAt, expiresAt или phrase).
+ * API: POST /api/parse — разбор фразы, возврат структуры для этикетки.
  */
 
 const express = require('express');
@@ -8,6 +9,8 @@ const cors = require('cors');
 const escpos = require('escpos');
 const usb = require('escpos-usb');
 const { printLabel } = require('./labelBuilder.js');
+const { parsePhrase } = require('./phraseParser.js');
+const { resolveExpiry } = require('./shelfLife.js');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -85,11 +88,46 @@ function doPrint(data, res) {
   }
 }
 
+/** Разбирает фразу и возвращает данные для этикетки или ошибку */
+function parseAndResolve(phrase) {
+  const parsed = parsePhrase(phrase);
+  if (parsed.error) return parsed;
+  return resolveExpiry(parsed);
+}
+
+app.post('/api/parse', (req, res) => {
+  const phrase = (req.body && req.body.phrase) != null ? String(req.body.phrase) : '';
+  const result = parseAndResolve(phrase);
+  if (result.error) {
+    res.status(400).json({ ok: false, error: result.error });
+    return;
+  }
+  res.json({
+    ok: true,
+    productName: result.productName,
+    madeAt: result.madeAt.toISOString(),
+    expiresAt: result.expiresAt.toISOString()
+  });
+});
+
 app.post('/api/print', (req, res) => {
   const body = req.body || {};
-  const productName = body.productName != null ? String(body.productName) : defaultLabel.productName;
-  const madeAt = parseDate(body.madeAt != null ? body.madeAt : defaultLabel.madeAt);
-  const expiresAt = parseDate(body.expiresAt != null ? body.expiresAt : defaultLabel.expiresAt);
+  let productName, madeAt, expiresAt;
+
+  if (body.phrase != null && String(body.phrase).trim()) {
+    const result = parseAndResolve(body.phrase);
+    if (result.error) {
+      res.status(400).json({ ok: false, error: result.error });
+      return;
+    }
+    productName = result.productName;
+    madeAt = result.madeAt;
+    expiresAt = result.expiresAt;
+  } else {
+    productName = body.productName != null ? String(body.productName) : defaultLabel.productName;
+    madeAt = parseDate(body.madeAt != null ? body.madeAt : defaultLabel.madeAt);
+    expiresAt = parseDate(body.expiresAt != null ? body.expiresAt : defaultLabel.expiresAt);
+  }
 
   doPrint({ productName, madeAt, expiresAt }, res);
 });

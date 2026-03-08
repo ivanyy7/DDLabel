@@ -3,7 +3,7 @@ import './App.css'
 
 const API_BASE = import.meta.env.VITE_API_URL || ''
 
-// Тестовые данные для мини-этапа 1 (как в плане)
+// Тестовые данные для мини-этапа 1
 const testLabel = {
   productName: 'Бекон слайс',
   madeAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
@@ -13,9 +13,12 @@ const testLabel = {
 function App() {
   const [status, setStatus] = useState(null)
   const [loading, setLoading] = useState(false)
+  const [phrase, setPhrase] = useState('')
+  const [parsedResult, setParsedResult] = useState(null)
 
-  const handlePrint = async () => {
+  const handlePrintTest = async () => {
     setStatus(null)
+    setParsedResult(null)
     setLoading(true)
     try {
       const res = await fetch(`${API_BASE}/api/print`, {
@@ -27,11 +30,67 @@ function App() {
       if (res.ok) {
         setStatus({ type: 'ok', message: data.message || 'Этикетка отправлена на печать.' })
       } else {
-        const msg = data.message || data.error || `Ошибка ${res.status}`
-        setStatus({ type: 'error', message: msg })
+        setStatus({ type: 'error', message: data.message || data.error || `Ошибка ${res.status}` })
       }
     } catch (err) {
       setStatus({ type: 'error', message: 'Сервер недоступен. Запустите сервис (npm start в папке server).' })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleParseAndPrint = async () => {
+    const text = (phrase || '').trim()
+    if (!text) {
+      setStatus({ type: 'error', message: 'Введите фразу.' })
+      return
+    }
+    setStatus(null)
+    setParsedResult(null)
+    setLoading(true)
+    try {
+      const res = await fetch(`${API_BASE}/api/print`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phrase: text }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) {
+        setStatus({ type: 'ok', message: data.message || 'Этикетка отправлена на печать.' })
+      } else {
+        setStatus({ type: 'error', message: data.message || data.error || `Ошибка ${res.status}` })
+      }
+    } catch (err) {
+      setStatus({ type: 'error', message: 'Сервер недоступен.' })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleParseOnly = async () => {
+    const text = (phrase || '').trim()
+    if (!text) {
+      setStatus({ type: 'error', message: 'Введите фразу.' })
+      return
+    }
+    setStatus(null)
+    setLoading(true)
+    try {
+      const res = await fetch(`${API_BASE}/api/parse`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phrase: text }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) {
+        setParsedResult({ productName: data.productName, madeAt: data.madeAt, expiresAt: data.expiresAt })
+        setStatus({ type: 'ok', message: 'Фраза разобрана.' })
+      } else {
+        setParsedResult(null)
+        setStatus({ type: 'error', message: data.error || data.message || 'Ошибка разбора' })
+      }
+    } catch (err) {
+      setStatus({ type: 'error', message: 'Сервер недоступен.' })
     } finally {
       setLoading(false)
     }
@@ -41,12 +100,39 @@ function App() {
     <div className="app">
       <h1>DDLabel</h1>
       <p className="subtitle">Печать этикеток по голосу</p>
+
+      <section className="card">
+        <p>Фраза (продукт и дата/время изготовления):</p>
+        <input
+          type="text"
+          className="phrase-input"
+          placeholder="Бекон слайс, изготовление вчера в 18:10"
+          value={phrase}
+          onChange={(e) => setPhrase(e.target.value)}
+          disabled={loading}
+        />
+        <div className="card-buttons">
+          <button onClick={handleParseOnly} disabled={loading}>
+            {loading ? '…' : 'Только разобрать'}
+          </button>
+          <button onClick={handleParseAndPrint} disabled={loading}>
+            {loading ? 'Отправка…' : 'Разобрать и напечатать'}
+          </button>
+        </div>
+        {parsedResult && (
+          <p className="parsed-info">
+            <strong>{parsedResult.productName}</strong> — изготовление: {new Date(parsedResult.madeAt).toLocaleString('ru-RU')}, срок до: {new Date(parsedResult.expiresAt).toLocaleString('ru-RU')}
+          </p>
+        )}
+      </section>
+
       <section className="card">
         <p>Тестовая этикетка: <strong>{testLabel.productName}</strong></p>
-        <button onClick={handlePrint} disabled={loading}>
+        <button onClick={handlePrintTest} disabled={loading}>
           {loading ? 'Отправка…' : 'Печать тестовой этикетки'}
         </button>
       </section>
+
       {status && (
         <p className={status.type === 'ok' ? 'status ok' : 'status error'}>
           {status.message}

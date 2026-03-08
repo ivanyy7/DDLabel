@@ -12,8 +12,8 @@
 - **`docs/`** — справочные материалы: printer-xp365b.md (принтер XP-365B), **label-format.md** (формат этикетки 30×20 мм — название, даты ДД.ММ, время ЧЧ.ММ, символ ∞, две колонки).
 
 **Этап 1 (в работе):**
-- **`server/`** — Node.js (Express): `index.js` (API печати, GET /api/printers для отладки), `labelBuilder.js` (шаблон этикетки по docs/label-format.md), ESC/POS через escpos и escpos-usb; в package.json override `usb: 1.8.8` для совместимости. Запуск: `npm start`. Порт 3001.
-- **`client/`** — React (Vite): одна страница с кнопкой «Печать тестовой этикетки», прокси `/api` на сервер. Запуск: `npm run dev`. Интерфейс: http://localhost:3000 (vite.config.js: port 3000, host: true). Читаемость карточки без расширений темы — явные цвета в App.css.
+- **`server/`** — Node.js (Express): `index.js` (API печати по готовым данным и по фразе, GET /api/printers, POST /api/parse), `labelBuilder.js` (шаблон этикетки по docs/label-format.md), `phraseParser.js` (разбор фразы: продукт, вчера/сегодня/позавчера, время ЧЧ:ММ), `shelfLife.js` (тестовый справочник сроков в часах, расчёт «срок до» минус 5 мин); ESC/POS через escpos и escpos-usb; в package.json override `usb: 1.8.8`. Запуск: `npm start`. Порт 3001.
+- **`client/`** — React (Vite): поле ввода фразы, кнопки «Только разобрать» и «Разобрать и напечатать», вывод разобранных данных; блок «Печать тестовой этикетки»; прокси `/api` на сервер. Читаемость: карточка и поле ввода — явные цвета в App.css. Запуск: `npm run dev`. Интерфейс: http://localhost:3000 (port 3000, host: true).
 
 ---
 
