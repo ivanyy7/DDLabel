@@ -38,6 +38,7 @@ function parseDate(val) {
  */
 function doPrint(data, res) {
   function fail(msg, details) {
+    if (details) console.error('[DDLabel]', msg, details);
     res.status(503).json({
       ok: false,
       error: msg,
@@ -60,10 +61,11 @@ function doPrint(data, res) {
     }
     device.open(function (err) {
     if (err) {
+      console.error('[DDLabel] Не удалось открыть принтер:', err.message);
       res.status(503).json({
         ok: false,
         error: 'Не удалось открыть принтер',
-        details: err.message
+        message: err.message
       });
       return;
     }
@@ -71,7 +73,8 @@ function doPrint(data, res) {
     printLabel(printer, data);
     printer.close(function (closeErr) {
       if (closeErr) {
-        res.status(503).json({ ok: false, error: 'Ошибка при печати', details: closeErr.message });
+        console.error('[DDLabel] Ошибка при печати:', closeErr.message);
+        res.status(503).json({ ok: false, error: 'Ошибка при печати', message: closeErr.message });
         return;
       }
       res.status(200).json({ ok: true, message: 'Этикетка отправлена на печать.' });
@@ -93,6 +96,22 @@ app.post('/api/print', (req, res) => {
 
 app.get('/api/health', (req, res) => {
   res.json({ ok: true, service: 'ddlabel-server' });
+});
+
+// Отладка: какие USB-принтеры видит система (для проверки после Zadig)
+app.get('/api/printers', (req, res) => {
+  try {
+    escpos.USB = usb;
+    const devices = usb.findPrinter();
+    const list = (devices || []).map((d, i) => ({
+      index: i,
+      vendorId: d.deviceDescriptor.idVendor,
+      productId: d.deviceDescriptor.idProduct
+    }));
+    res.json({ count: list.length, devices: list });
+  } catch (e) {
+    res.json({ count: 0, error: e.message });
+  }
 });
 
 app.listen(PORT, () => {

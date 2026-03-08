@@ -13,6 +13,9 @@
     "escpos-usb": "^3.0.0-alpha.4",
     "express": "^4.21.0"
   },
+  "overrides": {
+    "usb": "1.8.8"
+  },
   "engines": {
     "node": ">=18"
   }

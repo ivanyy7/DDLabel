@@ -27,7 +27,8 @@ function App() {
       if (res.ok) {
         setStatus({ type: 'ok', message: data.message || 'Этикетка отправлена на печать.' })
       } else {
-        setStatus({ type: 'error', message: data.error || data.message || `Ошибка ${res.status}` })
+        const msg = data.message || data.error || `Ошибка ${res.status}`
+        setStatus({ type: 'error', message: msg })
       }
     } catch (err) {
       setStatus({ type: 'error', message: 'Сервер недоступен. Запустите сервис (npm start в папке server).' })

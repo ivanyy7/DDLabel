@@ -12,7 +12,7 @@
 - **`docs/`** — справочные материалы: printer-xp365b.md (принтер XP-365B), **label-format.md** (формат этикетки 30×20 мм — название, даты ДД.ММ, время ЧЧ.ММ, символ ∞, две колонки).
 
 **Этап 1 (в работе):**
-- **`server/`** — Node.js (Express): `index.js` (API печати), `labelBuilder.js` (шаблон этикетки по docs/label-format.md), ESC/POS через пакеты escpos и escpos-usb. Запуск: `npm start`. Порт 3001.
+- **`server/`** — Node.js (Express): `index.js` (API печати, GET /api/printers для отладки), `labelBuilder.js` (шаблон этикетки по docs/label-format.md), ESC/POS через escpos и escpos-usb; в package.json override `usb: 1.8.8` для совместимости. Запуск: `npm start`. Порт 3001.
 - **`client/`** — React (Vite): одна страница с кнопкой «Печать тестовой этикетки», прокси `/api` на сервер. Запуск: `npm run dev`. Интерфейс: http://localhost:3000 (vite.config.js: port 3000, host: true). Читаемость карточки без расширений темы — явные цвета в App.css.
 
 ---
@@ -27,7 +27,7 @@
 
 ## Ресурсы: принтер Xprinter XP-365B
 
-- **Справочник по руководству:** `docs/printer-xp365b.md` (драйверы pc-controllers.ru, артикул 45895; Android «Print Label»; подключение USB/Bluetooth, COM-порт; характеристики, кнопки, устранение неполадок).
+- **Справочник по руководству:** `docs/printer-xp365b.md` (драйверы pc-controllers.ru, артикул 45895; Android «Print Label»; подключение USB/Bluetooth, COM-порт; характеристики, кнопки, устранение неполадок; раздел «Печать из DDLabel по USB: Zadig и WinUSB» — пошаговая замена драйвера на WinUSB для доступа приложения к принтеру).
 - Прямые ссылки на скачивание драйверов и приложений — добавить в этот файл при получении.
 
 ---
