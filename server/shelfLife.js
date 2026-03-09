@@ -1,43 +1,11 @@
 /**
- * Справочник сроков хранения (тестовый для мини-этапа 2).
- * Продукт → срок в часах. Позже будет CRUD и импорт из файла.
+ * Расчёт «срок годности до» по разобранной фразе.
+ * Срок берётся из единого слоя хранилища (shelfStorage); логика расчёта — здесь.
  */
+
+const { getByProductName, getShelfLifeHours } = require('./shelfStorage.js');
 
 const MINUS_MINUTES = 5; // «срок годности до» = расчётное окончание минус 5 минут
-
-/** Тестовый справочник: название (нормализованное) → срок в часах */
-const defaultShelfHours = {
-  'бекон слайс': 48,
-  'бекон': 48,
-  'сыр': 120,
-  'сыр российский': 120,
-  'молоко': 72,
-  'колбаса': 72,
-  'салат': 24,
-  'тесто': 24
-};
-
-/**
- * Нормализует название продукта для поиска (нижний регистр, лишние пробелы).
- */
-function normalizeName(name) {
-  return (name || '').toLowerCase().replace(/\s+/g, ' ').trim();
-}
-
-/**
- * Возвращает срок хранения в часах по названию продукта.
- * @param {string} productName
- * @returns {number | null} часы или null, если не найден
- */
-function getShelfLifeHours(productName) {
-  const key = normalizeName(productName);
-  if (defaultShelfHours[key] != null) return defaultShelfHours[key];
-  // Поиск по началу (например «бекон слайс копчёный» → бекон слайс)
-  for (const [k, hours] of Object.entries(defaultShelfHours)) {
-    if (key.startsWith(k) || key.includes(k)) return hours;
-  }
-  return null;
-}
 
 /**
  * Вычисляет «срок годности до»: дата/время изготовления + срок хранения (часы) − 5 минут.
@@ -53,28 +21,29 @@ function computeExpiresAt(madeAt, shelfLifeHours) {
 
 /**
  * По фразе (уже разобранной на productName и madeAt) возвращает данные для этикетки
- * или ошибку, если продукт не найден в справочнике.
+ * или ошибку, если продукт не найден. Ищет по названию и по вариантам (aliases).
+ * Возвращает каноническое productName из справочника (для этикетки и labelText).
  * @param {{ productName: string, madeAt: Date }} parsed
  * @returns {{ productName: string, madeAt: Date, expiresAt: Date } | { error: string }}
  */
 function resolveExpiry(parsed) {
   if (parsed.error) return parsed;
-  const hours = getShelfLifeHours(parsed.productName);
-  if (hours == null) {
+  const entry = getByProductName(parsed.productName);
+  if (!entry) {
     return { error: `Продукт «${parsed.productName}» не найден в справочнике сроков` };
   }
+  const hours = entry.unit === 'days' ? (entry.value || 0) * 24 : (entry.value != null ? entry.value : null);
+  if (hours == null) return { error: `Некорректный срок для «${entry.productName}»` };
   const expiresAt = computeExpiresAt(parsed.madeAt, hours);
   return {
-    productName: parsed.productName,
+    productName: entry.productName,
     madeAt: parsed.madeAt,
     expiresAt
   };
 }
 
 module.exports = {
-  getShelfLifeHours,
   computeExpiresAt,
   resolveExpiry,
-  MINUS_MINUTES,
-  defaultShelfHours
+  MINUS_MINUTES
 };

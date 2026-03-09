@@ -1,0 +1,35 @@
+[
+  {
+    "productName": "Бекон слайс",
+    "value": 4,
+    "unit": "days"
+  },
+  {
+    "productName": "Россия сыр",
+    "value": 4,
+    "unit": "days",
+    "labelText": "undefined",
+    "aliases": [
+      "Россия сыр",
+      "Российский",
+      "Российский сыр",
+      "Российский нарезка",
+      "Нарезка Россия"
+    ]
+  },
+  {
+    "productName": "Пармезан сыр",
+    "value": 4,
+    "unit": "days"
+  },
+  {
+    "productName": "Красный соус",
+    "value": 7,
+    "unit": "days"
+  },
+  {
+    "productName": "Сливочный соус",
+    "value": 7,
+    "unit": "days"
+  }
+]

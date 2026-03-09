@@ -11,6 +11,7 @@ const usb = require('escpos-usb');
 const { printLabel } = require('./labelBuilder.js');
 const { parsePhrase } = require('./phraseParser.js');
 const { resolveExpiry } = require('./shelfLife.js');
+const shelfStorage = require('./shelfStorage.js');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -99,7 +100,8 @@ app.post('/api/parse', (req, res) => {
   const phrase = (req.body && req.body.phrase) != null ? String(req.body.phrase) : '';
   const result = parseAndResolve(phrase);
   if (result.error) {
-    res.status(400).json({ ok: false, error: result.error });
+    const errMsg = phrase.trim() ? `${result.error} Вы сказали: «${phrase.trim()}».` : result.error;
+    res.status(400).json({ ok: false, error: errMsg });
     return;
   }
   res.json({
@@ -115,9 +117,11 @@ app.post('/api/print', (req, res) => {
   let productName, madeAt, expiresAt;
 
   if (body.phrase != null && String(body.phrase).trim()) {
-    const result = parseAndResolve(body.phrase);
+    const phrase = String(body.phrase).trim();
+    const result = parseAndResolve(phrase);
     if (result.error) {
-      res.status(400).json({ ok: false, error: result.error });
+      const errMsg = `${result.error} Вы сказали: «${phrase}».`;
+      res.status(400).json({ ok: false, error: errMsg });
       return;
     }
     productName = result.productName;
@@ -129,11 +133,70 @@ app.post('/api/print', (req, res) => {
     expiresAt = parseDate(body.expiresAt != null ? body.expiresAt : defaultLabel.expiresAt);
   }
 
-  doPrint({ productName, madeAt, expiresAt }, res);
+  const productLabelText = shelfStorage.getLabelText(productName);
+  doPrint({ productName, madeAt, expiresAt, productLabelText }, res);
 });
 
 app.get('/api/health', (req, res) => {
   res.json({ ok: true, service: 'ddlabel-server' });
+});
+
+// Справочник сроков (CRUD)
+app.get('/api/shelf', (req, res) => {
+  try {
+    const items = shelfStorage.getAll();
+    res.json({ ok: true, items });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+app.post('/api/shelf', (req, res) => {
+  try {
+    const body = req.body || {};
+    const result = shelfStorage.add({
+      productName: body.productName,
+      value: body.value,
+      unit: body.unit,
+      labelText: body.labelText,
+      aliases: body.aliases
+    });
+    if (!result.ok) {
+      res.status(400).json({ ok: false, error: result.error });
+      return;
+    }
+    res.status(201).json({ ok: true, message: 'Запись добавлена.' });
+  } catch (e) {
+    console.error('[DDLabel] POST /api/shelf:', e.message);
+    res.status(500).json({ ok: false, error: `Ошибка сервера: ${e.message}` });
+  }
+});
+
+app.put('/api/shelf/:productName', (req, res) => {
+  const oldName = decodeURIComponent(req.params.productName || '');
+  const body = req.body || {};
+    const result = shelfStorage.update(oldName, {
+      productName: body.productName,
+      value: body.value,
+      unit: body.unit,
+      labelText: body.labelText,
+      aliases: body.aliases
+    });
+  if (!result.ok) {
+    res.status(400).json({ ok: false, error: result.error });
+    return;
+  }
+  res.json({ ok: true, message: 'Запись обновлена.' });
+});
+
+app.delete('/api/shelf/:productName', (req, res) => {
+  const productName = decodeURIComponent(req.params.productName || '');
+  const result = shelfStorage.remove(productName);
+  if (!result.ok) {
+    res.status(404).json({ ok: false, error: result.error });
+    return;
+  }
+  res.json({ ok: true, message: 'Запись удалена.' });
 });
 
 // Отладка: какие USB-принтеры видит система (для проверки после Zadig)

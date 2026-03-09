@@ -43,12 +43,13 @@ function twoColumnLine(left, center, right) {
 
 /**
  * Печатает этикетку на переданном принтере (escpos.Printer).
- * productName, madeAt, expiresAt — данные для этикетки.
+ * productLabelText — надпись на этикетке (сокращение из справочника или productName).
  * @param {object} printer — экземпляр escpos.Printer
- * @param {{ productName: string, madeAt: Date, expiresAt: Date }} data
+ * @param {{ productName: string, productLabelText?: string, madeAt: Date, expiresAt: Date }} data
  */
 function printLabel(printer, data) {
-  const { productName, madeAt, expiresAt } = data;
+  const { productLabelText, productName, madeAt, expiresAt } = data;
+  const nameForLabel = (productLabelText != null && String(productLabelText).trim()) ? String(productLabelText).trim() : (productName || '');
   const dateMade = formatDate(madeAt);
   const dateExp = formatDate(expiresAt);
   const timeMade = formatTime(madeAt);
@@ -56,7 +57,7 @@ function printLabel(printer, data) {
   // Символ «от — до»: ∞ (если принтер не поддерживает — заменить на "~")
   const centerSymbol = '\u221E';
 
-  const nameLine = productName.length > WIDTH ? productName.slice(0, WIDTH) : productName;
+  const nameLine = nameForLabel.length > WIDTH ? nameForLabel.slice(0, WIDTH) : nameForLabel;
 
   // Название: по центру, жирный, подчёркивание
   printer.align('ct').style('bu').size(1, 1).text(nameLine).style('normal').size(1, 1);
