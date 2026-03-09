@@ -9,11 +9,21 @@ const LABEL_LAST_TEMPLATE_KEY = 'ddlabel_last_template'
 const SpeechRecognitionAPI = typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition)
 
 const defaultLabelControls = {
-  title: { fontSize: 18, offsetX: 0, offsetY: 0 },
-  dateLeft: { fontSize: 32, offsetX: 0, offsetY: 0 },
-  dateRight: { fontSize: 32, offsetX: 0, offsetY: 0 },
-  timeLeft: { fontSize: 16, offsetX: 0, offsetY: 0 },
-  timeRight: { fontSize: 16, offsetX: 0, offsetY: 0 },
+  title: { fontSize: 18, offsetX: 0, offsetY: 0, weight: 0, stretch: 0 },
+  dateLeft: { fontSize: 32, offsetX: 0, offsetY: 0, weight: 0, stretch: 0 },
+  dateRight: { fontSize: 32, offsetX: 0, offsetY: 0, weight: 0, stretch: 0 },
+  infinity: { fontSize: 24, offsetX: 0, offsetY: 0, weight: 0, stretch: 0 },
+  timeLeft: { fontSize: 16, offsetX: 0, offsetY: 0, weight: 0, stretch: 0 },
+  timeRight: { fontSize: 16, offsetX: 0, offsetY: 0, weight: 0, stretch: 0 },
+}
+
+const defaultLabelVisibility = {
+  title: true,
+  dateLeft: true,
+  dateRight: true,
+  infinity: true,
+  timeLeft: true,
+  timeRight: true,
 }
 
 function loadLabelTemplatesFromStorage() {
@@ -60,12 +70,23 @@ function App() {
     }
     return defaultLabelControls
   })
+  const [labelVisibility, setLabelVisibility] = useState(() => {
+    const last = typeof localStorage !== 'undefined' ? localStorage.getItem(LABEL_LAST_TEMPLATE_KEY) : null
+    const all = loadLabelTemplatesFromStorage()
+    if (last && all[last]) {
+      return all[last].labelVisibility || defaultLabelVisibility
+    }
+    return defaultLabelVisibility
+  })
   const [savedTemplateNames, setSavedTemplateNames] = useState(() => {
     return Object.keys(loadLabelTemplatesFromStorage()).sort()
   })
   const [templateNameInput, setTemplateNameInput] = useState('')
   const [loadTemplateName, setLoadTemplateName] = useState('')
   const [labelTemplateStatus, setLabelTemplateStatus] = useState(null)
+  const [useCalibDates, setUseCalibDates] = useState(false)
+  const [calibDay, setCalibDay] = useState('9')
+  const [calibMonth, setCalibMonth] = useState('3')
 
   const loadShelf = async () => {
     setShelfLoading(true)
@@ -99,7 +120,7 @@ function App() {
       return
     }
     const all = loadLabelTemplatesFromStorage()
-    all[name] = { labelControls, selectedElement }
+    all[name] = { labelControls, labelVisibility, selectedElement }
     try {
       localStorage.setItem(LABEL_TEMPLATES_KEY, JSON.stringify(all))
       localStorage.setItem(LABEL_LAST_TEMPLATE_KEY, name)
@@ -124,6 +145,7 @@ function App() {
       return
     }
     setLabelControls(t.labelControls || defaultLabelControls)
+    setLabelVisibility(t.labelVisibility || defaultLabelVisibility)
     if (t.selectedElement) setSelectedElement(t.selectedElement)
     localStorage.setItem(LABEL_LAST_TEMPLATE_KEY, name)
     setLabelTemplateStatus({ type: 'ok', message: `Загружен шаблон «${name}».` })
@@ -467,19 +489,55 @@ function App() {
   const previewExpiresAt = parsedResult?.expiresAt ? new Date(parsedResult.expiresAt) : new Date(previewMadeAt.getTime() + 48 * 60 * 60 * 1000)
 
   const pad2 = (n) => String(n).padStart(2, '0')
-  const madeDay = pad2(previewMadeAt.getDate())
-  const madeMonth = pad2(previewMadeAt.getMonth() + 1)
+  const numericCalibDay = Number(calibDay)
+  const numericCalibMonth = Number(calibMonth)
+  const useNumericCalib = useCalibDates && !Number.isNaN(numericCalibDay) && !Number.isNaN(numericCalibMonth)
+
+  const madeDay = pad2(useNumericCalib ? numericCalibDay : previewMadeAt.getDate())
+  const madeMonth = pad2(useNumericCalib ? numericCalibMonth : previewMadeAt.getMonth() + 1)
   const madeHours = pad2(previewMadeAt.getHours())
   const madeMinutes = pad2(previewMadeAt.getMinutes())
-  const expDay = pad2(previewExpiresAt.getDate())
-  const expMonth = pad2(previewExpiresAt.getMonth() + 1)
+  const expDay = pad2(useNumericCalib ? numericCalibDay : previewExpiresAt.getDate())
+  const expMonth = pad2(useNumericCalib ? numericCalibMonth : previewExpiresAt.getMonth() + 1)
   const expHours = pad2(previewExpiresAt.getHours())
   const expMinutes = pad2(previewExpiresAt.getMinutes())
 
-  const applyControl = (key) => ({
-    fontSize: `${labelControls[key].fontSize}px`,
-    transform: `translate(${labelControls[key].offsetX}px, ${labelControls[key].offsetY}px)`,
-  })
+  const onlyInfinityVisible =
+    labelVisibility.infinity &&
+    !labelVisibility.title &&
+    !labelVisibility.dateLeft &&
+    !labelVisibility.dateRight &&
+    !labelVisibility.timeLeft &&
+    !labelVisibility.timeRight
+
+  const applyControl = (key) => {
+    const { fontSize, offsetX, offsetY, weight = 0, stretch = 0 } = labelControls[key]
+    // Жирность: влево — тоньше (мин. ~150, на 50% тоньше прежнего минимума), вправо — жирнее
+    const fw = Math.max(100, Math.min(900, 400 + weight * 125))
+    const ls = `${stretch}px`
+    let extraY = 0
+    if (key === 'infinity' && onlyInfinityVisible) {
+      extraY = -fontSize * 0.25
+    }
+    return {
+      fontFamily: "'Teko', sans-serif",
+      fontSize: `${fontSize}px`,
+      transform: `translate(${offsetX}px, ${offsetY + extraY}px)`,
+      fontWeight: fw,
+      letterSpacing: ls,
+    }
+  }
+
+  const previewStyle = {
+    justifyContent: onlyInfinityVisible ? 'center' : 'space-between',
+  }
+
+  const datesRowStyle = {
+    justifyContent:
+      !labelVisibility.dateLeft && !labelVisibility.dateRight
+        ? 'center'
+        : 'space-between',
+  }
 
   const handleLabelControlChange = (field, value) => {
     setLabelControls((prev) => ({
@@ -488,6 +546,13 @@ function App() {
         ...prev[selectedElement],
         [field]: value,
       },
+    }))
+  }
+
+  const handleLabelVisibilityToggle = (key) => {
+    setLabelVisibility((prev) => ({
+      ...prev,
+      [key]: !prev[key],
     }))
   }
 
@@ -574,6 +639,42 @@ function App() {
             {labelTemplateStatus.message}
           </p>
         )}
+        <div className="label-templates-row">
+          <label className="label-control">
+            <span>
+              Тестовые даты для калибровки
+              <br />
+              <label style={{ fontSize: '0.8rem' }}>
+                <input
+                  type="checkbox"
+                  checked={useCalibDates}
+                  onChange={(e) => setUseCalibDates(e.target.checked)}
+                />{' '}
+                использовать одинаковые ДД.ММ
+              </label>
+            </span>
+            <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.25rem' }}>
+              <input
+                type="number"
+                min="1"
+                max="31"
+                className="phrase-input shelf-input shelf-num"
+                placeholder="День"
+                value={calibDay}
+                onChange={(e) => setCalibDay(e.target.value)}
+              />
+              <input
+                type="number"
+                min="1"
+                max="12"
+                className="phrase-input shelf-input shelf-num"
+                placeholder="Месяц"
+                value={calibMonth}
+                onChange={(e) => setCalibMonth(e.target.value)}
+              />
+            </div>
+          </label>
+        </div>
         <div className="label-controls">
           <label className="label-control">
             Элемент
@@ -584,10 +685,64 @@ function App() {
               <option value="title">Название продукта</option>
               <option value="dateLeft">Дата слева</option>
               <option value="dateRight">Дата справа</option>
+              <option value="infinity">Знак бесконечности</option>
               <option value="timeLeft">Время слева</option>
               <option value="timeRight">Время справа</option>
             </select>
           </label>
+          <div className="label-control label-control-inline">
+            <span>Показать строки</span>
+            <div className="label-visibility-row">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={labelVisibility.title}
+                  onChange={() => handleLabelVisibilityToggle('title')}
+                />
+                Название
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={labelVisibility.dateLeft}
+                  onChange={() => handleLabelVisibilityToggle('dateLeft')}
+                />
+                Дата слева
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={labelVisibility.dateRight}
+                  onChange={() => handleLabelVisibilityToggle('dateRight')}
+                />
+                Дата справа
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={labelVisibility.infinity}
+                  onChange={() => handleLabelVisibilityToggle('infinity')}
+                />
+                Знак ∞
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={labelVisibility.timeLeft}
+                  onChange={() => handleLabelVisibilityToggle('timeLeft')}
+                />
+                Время слева
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={labelVisibility.timeRight}
+                  onChange={() => handleLabelVisibilityToggle('timeRight')}
+                />
+                Время справа
+              </label>
+            </div>
+          </div>
           <label className="label-control">
             Размер шрифта
             <input
@@ -621,19 +776,117 @@ function App() {
             />
             <span className="label-control-value">{labelControls[selectedElement].offsetY}px</span>
           </label>
+          <label className="label-control">
+            Жирность текста
+            <input
+              type="range"
+              min="-3"
+              max="2"
+              value={labelControls[selectedElement].weight}
+              onChange={(e) => handleLabelControlChange('weight', Number(e.target.value))}
+            />
+            <span className="label-control-value">
+              {labelControls[selectedElement].weight > 0
+                ? 'чуть жирнее'
+                : labelControls[selectedElement].weight < 0
+                  ? 'чуть тоньше'
+                  : 'нормальная'}
+            </span>
+          </label>
+          <label className="label-control">
+            Сжатие / растяжение по ширине
+            <input
+              type="range"
+              min="-6"
+              max="6"
+              value={labelControls[selectedElement].stretch}
+              onChange={(e) => handleLabelControlChange('stretch', Number(e.target.value))}
+            />
+            <span className="label-control-value">
+              {labelControls[selectedElement].stretch > 0
+                ? `шире +${labelControls[selectedElement].stretch}`
+                : labelControls[selectedElement].stretch < 0
+                  ? `уже ${labelControls[selectedElement].stretch}`
+                  : 'по умолчанию'}
+            </span>
+          </label>
         </div>
-        <div className="label-preview">
+        <div className="card-buttons" style={{ marginTop: '0.5rem' }}>
+          <button
+            type="button"
+            onClick={async () => {
+              setStatus(null)
+              setLoading(true)
+              try {
+                let madeForTest = new Date(previewMadeAt)
+                let expiresForTest = new Date(previewExpiresAt)
+                if (useNumericCalib) {
+                  madeForTest.setMonth(numericCalibMonth - 1)
+                  madeForTest.setDate(numericCalibDay)
+                  expiresForTest.setMonth(numericCalibMonth - 1)
+                  expiresForTest.setDate(numericCalibDay)
+                }
+                const left = labelControls.dateLeft
+                const right = labelControls.dateRight
+                const res = await fetch(`${API_BASE}/api/test-print`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    productName: previewProductName,
+                    madeAt: madeForTest.toISOString(),
+                    expiresAt: expiresForTest.toISOString(),
+                    sizeLeft: left.fontSize,
+                    sizeRight: right.fontSize,
+                    offsetXLeft: left.offsetX,
+                    offsetYLeft: left.offsetY,
+                    offsetXRight: right.offsetX,
+                    offsetYRight: right.offsetY,
+                    stretchLeft: left.stretch,
+                    stretchRight: right.stretch,
+                  }),
+                })
+                const data = await res.json().catch(() => ({}))
+                if (res.ok) {
+                  setStatus({ type: 'ok', message: data.message || 'Тестовая этикетка отправлена на печать.' })
+                } else {
+                  setStatus({ type: 'error', message: data.error || data.message || `Ошибка ${res.status}` })
+                }
+              } catch (e) {
+                setStatus({ type: 'error', message: 'Сервер недоступен.' })
+              } finally {
+                setLoading(false)
+              }
+            }}
+            disabled={loading || isListening}
+          >
+            Тестовая печать (без фразы)
+          </button>
+        </div>
+        <div className="label-preview" style={previewStyle}>
+          <div className="label-center-guides" />
           <div className="label-row label-title-row">
-            <span className="label-title" style={applyControl('title')}>{previewProductName}</span>
+            {labelVisibility.title && (
+              <span className="label-title" style={applyControl('title')}>{previewProductName}</span>
+            )}
           </div>
-          <div className="label-row label-dates-row">
-            <span className="label-date" style={applyControl('dateLeft')}>{madeDay}.{madeMonth}</span>
-            <span className="label-infinity">∞</span>
-            <span className="label-date" style={applyControl('dateRight')}>{expDay}.{expMonth}</span>
+          <div className="label-row label-dates-row" style={datesRowStyle}>
+            {labelVisibility.dateLeft && (
+              <span className="label-date" style={applyControl('dateLeft')}>{madeDay}.{madeMonth}</span>
+            )}
+            {labelVisibility.infinity && (
+              <span className="label-infinity" style={applyControl('infinity')}>∞</span>
+            )}
+            {labelVisibility.dateRight && (
+              <span className="label-date" style={applyControl('dateRight')}>{expDay}.{expMonth}</span>
+            )}
           </div>
           <div className="label-row label-times-row">
-            <span className="label-time" style={applyControl('timeLeft')}>{madeHours}.{madeMinutes}</span>
-            <span className="label-time" style={applyControl('timeRight')}>{expHours}.{expMinutes}</span>
+            {labelVisibility.timeLeft && (
+              <span className="label-time" style={applyControl('timeLeft')}>{madeHours}.{madeMinutes}</span>
+            )}
+            {labelVisibility.timeRight && (
+              <span className="label-time" style={applyControl('timeRight')}>{expHours}.{expMinutes}</span>
+            )}
           </div>
         </div>
       </section>

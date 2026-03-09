@@ -10,7 +10,7 @@ const escpos = require('escpos');
 const usb = require('escpos-usb');
 const iconv = require('iconv-lite');
 const { printLabel } = require('./labelBuilder.js');
-const { buildTsplLabel } = require('./tsplDriver.js');
+const { buildTsplLabel, buildTsplTestDates } = require('./tsplDriver.js');
 const { resolveExpiry } = require('./shelfLife.js');
 const shelfStorage = require('./shelfStorage.js');
 const { parsePhraseWithMode } = require('./parsing/core/phraseEngine');
@@ -43,7 +43,7 @@ function parseDate(val) {
  * Текущая реализация: отправка TSPL-команд для режима этикеток XP-365B.
  * Если принтер не найден или USB-коммуникация не удалась — отвечаем 503.
  */
-function doPrint(data, res) {
+function doPrint(data, res, tsplBuilder = buildTsplLabel) {
   function fail(msg, details) {
     if (details) console.error('[DDLabel]', msg, details);
     res.status(503).json({
@@ -61,10 +61,11 @@ function doPrint(data, res) {
     }
     const device = devices[0];
 
-    const cmd = buildTsplLabel({
+    // ВАЖНО: передаём в tsplBuilder все поля data (включая testScale/offsetX/offsetY
+    // для калибровки), но при этом productName берём из labelText, если он есть.
+    const cmd = tsplBuilder({
+      ...data,
       productName: data.productLabelText || data.productName,
-      madeAt: data.madeAt,
-      expiresAt: data.expiresAt,
     });
 
     try {
@@ -178,6 +179,37 @@ app.post('/api/print', (req, res) => {
 
   const productLabelText = shelfStorage.getLabelText(productName);
   doPrint({ productName, madeAt, expiresAt, productLabelText }, res);
+});
+
+// Тестовая печать ТОЛЬКО СРЕДНЕГО РЯДА (две даты + ∞) — без парсера и без названия/времени.
+app.post('/api/test-print', (req, res) => {
+  const body = req.body || {};
+  const productName = body.productName != null ? String(body.productName) : defaultLabel.productName;
+  const madeAt = parseDate(body.madeAt != null ? body.madeAt : defaultLabel.madeAt);
+  const expiresAt = parseDate(body.expiresAt != null ? body.expiresAt : defaultLabel.expiresAt);
+  const sizeLeft = body.sizeLeft;
+  const sizeRight = body.sizeRight;
+  const offsetXLeft = body.offsetXLeft;
+  const offsetYLeft = body.offsetYLeft;
+  const offsetXRight = body.offsetXRight;
+  const offsetYRight = body.offsetYRight;
+  const stretchLeft = body.stretchLeft;
+  const stretchRight = body.stretchRight;
+  const productLabelText = shelfStorage.getLabelText(productName);
+  doPrint({
+    productName,
+    madeAt,
+    expiresAt,
+    productLabelText,
+    sizeLeft,
+    sizeRight,
+    offsetXLeft,
+    offsetYLeft,
+    offsetXRight,
+    offsetYRight,
+    stretchLeft,
+    stretchRight,
+  }, res, buildTsplTestDates);
 });
 
 app.get('/api/health', (req, res) => {
