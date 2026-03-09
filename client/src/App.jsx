@@ -30,11 +30,6 @@ function App() {
   const [aliasesModalItem, setAliasesModalItem] = useState(null)
   const [aliasesModalValue, setAliasesModalValue] = useState('')
 
-  // Ширины колонок таблицы «Список продуктов» (в rem), можно менять ползунками
-  const [shelfColWidths, setShelfColWidths] = useState({ product: 20, expiry: 7, actions: 11 })
-  const [shelfResizingCol, setShelfResizingCol] = useState(null)
-  const shelfResizeStartRef = useRef({ x: 0, width: 0 })
-
   const loadShelf = async () => {
     setShelfLoading(true)
     setShelfStatus(null)
@@ -51,39 +46,6 @@ function App() {
   }
 
   useEffect(() => { loadShelf() }, [])
-
-  // Ресайз колонок таблицы «Список продуктов»
-  useEffect(() => {
-    if (!shelfResizingCol) return
-    const minW = { product: 10, expiry: 5, actions: 9 }
-    const maxW = { product: 45, expiry: 12, actions: 18 }
-    const onMove = (e) => {
-      const start = shelfResizeStartRef.current
-      if (!start) return
-      const deltaRem = (e.clientX - start.x) / 16
-      const newWidth = Math.min(maxW[shelfResizingCol], Math.max(minW[shelfResizingCol], start.width + deltaRem))
-      setShelfColWidths((prev) => ({ ...prev, [shelfResizingCol]: newWidth }))
-    }
-    const onUp = () => {
-      setShelfResizingCol(null)
-      document.body.style.cursor = ''
-      document.body.style.userSelect = ''
-    }
-    document.body.style.cursor = 'col-resize'
-    document.body.style.userSelect = 'none'
-    document.addEventListener('mousemove', onMove)
-    document.addEventListener('mouseup', onUp)
-    return () => {
-      document.removeEventListener('mousemove', onMove)
-      document.removeEventListener('mouseup', onUp)
-    }
-  }, [shelfResizingCol])
-
-  const startShelfResize = (col, e) => {
-    e.preventDefault()
-    shelfResizeStartRef.current = { x: e.clientX, width: shelfColWidths[col] }
-    setShelfResizingCol(col)
-  }
 
   // Отображение срока в таблице: 25–36 часов показываем как «1 сутки X часов»
   const formatShelfDisplay = (item) => {
@@ -484,25 +446,12 @@ function App() {
               <p className="shelf-loading">Загрузка…</p>
             ) : (
               <div className="shelf-table-wrap">
-                <table className={`shelf-table shelf-table-resizable${shelfResizingCol ? ' shelf-resizing' : ''}`} style={{ tableLayout: 'fixed' }}>
-                  <colgroup>
-                    <col style={{ width: `${shelfColWidths.product}rem` }} />
-                    <col style={{ width: `${shelfColWidths.expiry}rem` }} />
-                    <col style={{ width: `${shelfColWidths.actions}rem` }} />
-                  </colgroup>
+                <table className="shelf-table shelf-table-fixed">
                   <thead>
                     <tr>
-                      <th className="shelf-product-col">
-                        Продукт
-                        <span className="shelf-col-resizer" onMouseDown={(e) => startShelfResize('product', e)} title="Тяните для изменения ширины" />
-                      </th>
-                      <th className="shelf-expiry-col">
-                        Срок
-                        <span className="shelf-col-resizer" onMouseDown={(e) => startShelfResize('expiry', e)} title="Тяните для изменения ширины" />
-                      </th>
-                      <th className="shelf-actions-col">
-                        <span className="shelf-col-resizer" onMouseDown={(e) => startShelfResize('actions', e)} title="Тяните для изменения ширины" />
-                      </th>
+                      <th className="shelf-product-col">Продукт</th>
+                      <th className="shelf-expiry-col">Срок</th>
+                      <th className="shelf-actions-col" />
                     </tr>
                   </thead>
                   <tbody>

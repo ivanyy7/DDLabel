@@ -158,7 +158,7 @@
 
 .shelf-table th,
 .shelf-table td {
-  padding: 0.5rem 0.75rem;
+  padding: 8px 10px;
   border: 1px solid #ccc;
 }
 
@@ -170,33 +170,14 @@
   margin-top: 0;
 }
 
-/* Таблица с ресайзом колонок — ширины задаются через colgroup в JS */
-.shelf-table-resizable .shelf-product-col,
-.shelf-table-resizable .shelf-expiry-col,
-.shelf-table-resizable .shelf-actions-col {
-  position: relative;
-}
-
-/* Ползунок для изменения ширины колонки */
-.shelf-col-resizer {
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: 8px;
-  cursor: col-resize;
-  background: transparent;
-}
-.shelf-col-resizer:hover {
-  background: rgba(0, 0, 0, 0.08);
-}
-.shelf-table-resizable.shelf-resizing .shelf-col-resizer {
-  background: rgba(0, 0, 0, 0.12);
+/* Таблица «Список продуктов» с фиксированными колонками в px */
+.shelf-table-fixed {
+  table-layout: fixed;
 }
 
 /* 1-й столбец: название продукта */
-.shelf-product-col {
-  min-width: 8rem;
+.shelf-table-fixed .shelf-product-col {
+  width: 55%;
 }
 
 .shelf-product-cell {
@@ -204,7 +185,8 @@
 }
 
 /* 2-й столбец: Срок */
-.shelf-expiry-col {
+.shelf-table-fixed .shelf-expiry-col {
+  width: 15%;
   white-space: nowrap;
   text-align: left;
 }
@@ -215,7 +197,8 @@
 }
 
 /* 3-й столбец: кнопки */
-.shelf-actions-col {
+.shelf-table-fixed .shelf-actions-col {
+  width: 30%;
   text-align: right;
 }
 
@@ -253,10 +236,38 @@
 }
 
 .shelf-modal-panel {
-  max-width: 520px;
+  max-width: 600px;
   width: 100%;
   max-height: 85vh;
   overflow-y: auto;
+}
+
+/* Адаптивность окна «Список продуктов» */
+@media (max-width: 600px) {
+  .shelf-modal-panel {
+    max-width: 95vw;
+  }
+
+  .shelf-table {
+    font-size: 0.9rem;
+  }
+
+  .shelf-table th,
+  .shelf-table td {
+    padding: 6px 8px;
+  }
+
+  .shelf-table-fixed .shelf-product-col {
+    width: 50%;
+  }
+
+  .shelf-table-fixed .shelf-expiry-col {
+    width: 20%;
+  }
+
+  .shelf-table-fixed .shelf-actions-col {
+    width: 30%;
+  }
 }
 
 .shelf-modal-header {
