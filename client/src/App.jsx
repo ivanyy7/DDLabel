@@ -3,7 +3,27 @@ import './App.css'
 
 const API_BASE = import.meta.env.VITE_API_URL || ''
 
+const LABEL_TEMPLATES_KEY = 'ddlabel_label_templates'
+const LABEL_LAST_TEMPLATE_KEY = 'ddlabel_last_template'
+
 const SpeechRecognitionAPI = typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition)
+
+const defaultLabelControls = {
+  title: { fontSize: 18, offsetX: 0, offsetY: 0 },
+  dateLeft: { fontSize: 32, offsetX: 0, offsetY: 0 },
+  dateRight: { fontSize: 32, offsetX: 0, offsetY: 0 },
+  timeLeft: { fontSize: 16, offsetX: 0, offsetY: 0 },
+  timeRight: { fontSize: 16, offsetX: 0, offsetY: 0 },
+}
+
+function loadLabelTemplatesFromStorage() {
+  try {
+    const raw = localStorage.getItem(LABEL_TEMPLATES_KEY)
+    return raw ? JSON.parse(raw) : {}
+  } catch {
+    return {}
+  }
+}
 
 function App() {
   const [status, setStatus] = useState(null)
@@ -30,6 +50,23 @@ function App() {
   const [aliasesModalItem, setAliasesModalItem] = useState(null)
   const [aliasesModalValue, setAliasesModalValue] = useState('')
 
+  // Настройки превью этикетки и шаблоны
+  const [selectedElement, setSelectedElement] = useState('title')
+  const [labelControls, setLabelControls] = useState(() => {
+    const last = typeof localStorage !== 'undefined' ? localStorage.getItem(LABEL_LAST_TEMPLATE_KEY) : null
+    const all = loadLabelTemplatesFromStorage()
+    if (last && all[last]) {
+      return all[last].labelControls || defaultLabelControls
+    }
+    return defaultLabelControls
+  })
+  const [savedTemplateNames, setSavedTemplateNames] = useState(() => {
+    return Object.keys(loadLabelTemplatesFromStorage()).sort()
+  })
+  const [templateNameInput, setTemplateNameInput] = useState('')
+  const [loadTemplateName, setLoadTemplateName] = useState('')
+  const [labelTemplateStatus, setLabelTemplateStatus] = useState(null)
+
   const loadShelf = async () => {
     setShelfLoading(true)
     setShelfStatus(null)
@@ -46,6 +83,51 @@ function App() {
   }
 
   useEffect(() => { loadShelf() }, [])
+
+  useEffect(() => {
+    const last = localStorage.getItem(LABEL_LAST_TEMPLATE_KEY)
+    const all = loadLabelTemplatesFromStorage()
+    if (last && all[last] && all[last].selectedElement) {
+      setSelectedElement(all[last].selectedElement)
+    }
+  }, [])
+
+  const saveLabelTemplate = () => {
+    const name = (templateNameInput || '').trim().replace(/\s+/g, '_')
+    if (!name) {
+      setLabelTemplateStatus({ type: 'error', message: 'Введите название шаблона (например 1_1, 1_2).' })
+      return
+    }
+    const all = loadLabelTemplatesFromStorage()
+    all[name] = { labelControls, selectedElement }
+    try {
+      localStorage.setItem(LABEL_TEMPLATES_KEY, JSON.stringify(all))
+      localStorage.setItem(LABEL_LAST_TEMPLATE_KEY, name)
+      setSavedTemplateNames(Object.keys(all).sort())
+      setLabelTemplateStatus({ type: 'ok', message: `Шаблон «${name}» сохранён.` })
+      setTemplateNameInput('')
+    } catch (e) {
+      setLabelTemplateStatus({ type: 'error', message: 'Не удалось сохранить шаблон.' })
+    }
+  }
+
+  const loadLabelTemplate = () => {
+    const name = (loadTemplateName || '').trim()
+    if (!name) {
+      setLabelTemplateStatus({ type: 'error', message: 'Выберите шаблон для загрузки.' })
+      return
+    }
+    const all = loadLabelTemplatesFromStorage()
+    const t = all[name]
+    if (!t) {
+      setLabelTemplateStatus({ type: 'error', message: `Шаблон «${name}» не найден.` })
+      return
+    }
+    setLabelControls(t.labelControls || defaultLabelControls)
+    if (t.selectedElement) setSelectedElement(t.selectedElement)
+    localStorage.setItem(LABEL_LAST_TEMPLATE_KEY, name)
+    setLabelTemplateStatus({ type: 'ok', message: `Загружен шаблон «${name}».` })
+  }
 
   // Отображение срока в таблице: 25–36 часов показываем как «1 сутки X часов»
   const formatShelfDisplay = (item) => {
@@ -380,6 +462,35 @@ function App() {
     }
   }
 
+  const previewProductName = parsedResult?.productName || 'сыр Российский'
+  const previewMadeAt = parsedResult?.madeAt ? new Date(parsedResult.madeAt) : new Date()
+  const previewExpiresAt = parsedResult?.expiresAt ? new Date(parsedResult.expiresAt) : new Date(previewMadeAt.getTime() + 48 * 60 * 60 * 1000)
+
+  const pad2 = (n) => String(n).padStart(2, '0')
+  const madeDay = pad2(previewMadeAt.getDate())
+  const madeMonth = pad2(previewMadeAt.getMonth() + 1)
+  const madeHours = pad2(previewMadeAt.getHours())
+  const madeMinutes = pad2(previewMadeAt.getMinutes())
+  const expDay = pad2(previewExpiresAt.getDate())
+  const expMonth = pad2(previewExpiresAt.getMonth() + 1)
+  const expHours = pad2(previewExpiresAt.getHours())
+  const expMinutes = pad2(previewExpiresAt.getMinutes())
+
+  const applyControl = (key) => ({
+    fontSize: `${labelControls[key].fontSize}px`,
+    transform: `translate(${labelControls[key].offsetX}px, ${labelControls[key].offsetY}px)`,
+  })
+
+  const handleLabelControlChange = (field, value) => {
+    setLabelControls((prev) => ({
+      ...prev,
+      [selectedElement]: {
+        ...prev[selectedElement],
+        [field]: value,
+      },
+    }))
+  }
+
   return (
     <div className="app">
       <h1>DDLabel</h1>
@@ -421,6 +532,110 @@ function App() {
             <strong>{parsedResult.productName}</strong> — изготовление: {new Date(parsedResult.madeAt).toLocaleString('ru-RU')}, срок до: {new Date(parsedResult.expiresAt).toLocaleString('ru-RU')}
           </p>
         )}
+      </section>
+
+      <section className="card">
+        <h2 className="card-title">Превью макета этикетки 30×20 мм</h2>
+        <p className="card-desc">Это только визуальный макет (Open Sans), по нему будем подбирать расположение элементов для печати. Настройки можно сохранять как шаблон (1_1, 1_2 и т.д.).</p>
+        <div className="label-templates-row">
+          <label className="label-control">
+            Название шаблона
+            <input
+              type="text"
+              className="phrase-input shelf-input"
+              placeholder="1_1, 1_2..."
+              value={templateNameInput}
+              onChange={(e) => { setTemplateNameInput(e.target.value); setLabelTemplateStatus(null) }}
+            />
+          </label>
+          <button type="button" onClick={saveLabelTemplate} className="card-buttons button-inline">
+            Сохранить шаблон
+          </button>
+        </div>
+        <div className="label-templates-row">
+          <label className="label-control">
+            Загрузить шаблон
+            <select
+              value={loadTemplateName}
+              onChange={(e) => { setLoadTemplateName(e.target.value); setLabelTemplateStatus(null) }}
+            >
+              <option value="">— выберите —</option>
+              {savedTemplateNames.map((n) => (
+                <option key={n} value={n}>{n}</option>
+              ))}
+            </select>
+          </label>
+          <button type="button" onClick={loadLabelTemplate} disabled={!loadTemplateName} className="card-buttons button-inline">
+            Загрузить
+          </button>
+        </div>
+        {labelTemplateStatus && (
+          <p className={labelTemplateStatus.type === 'ok' ? 'status ok' : 'status error'} style={{ marginTop: '0.5rem' }}>
+            {labelTemplateStatus.message}
+          </p>
+        )}
+        <div className="label-controls">
+          <label className="label-control">
+            Элемент
+            <select
+              value={selectedElement}
+              onChange={(e) => setSelectedElement(e.target.value)}
+            >
+              <option value="title">Название продукта</option>
+              <option value="dateLeft">Дата слева</option>
+              <option value="dateRight">Дата справа</option>
+              <option value="timeLeft">Время слева</option>
+              <option value="timeRight">Время справа</option>
+            </select>
+          </label>
+          <label className="label-control">
+            Размер шрифта
+            <input
+              type="range"
+              min="10"
+              max="60"
+              value={labelControls[selectedElement].fontSize}
+              onChange={(e) => handleLabelControlChange('fontSize', Number(e.target.value))}
+            />
+            <span className="label-control-value">{labelControls[selectedElement].fontSize}px</span>
+          </label>
+          <label className="label-control">
+            Сдвиг по X (влево/вправо)
+            <input
+              type="range"
+              min="-40"
+              max="40"
+              value={labelControls[selectedElement].offsetX}
+              onChange={(e) => handleLabelControlChange('offsetX', Number(e.target.value))}
+            />
+            <span className="label-control-value">{labelControls[selectedElement].offsetX}px</span>
+          </label>
+          <label className="label-control">
+            Сдвиг по Y (вверх/вниз)
+            <input
+              type="range"
+              min="-40"
+              max="40"
+              value={labelControls[selectedElement].offsetY}
+              onChange={(e) => handleLabelControlChange('offsetY', Number(e.target.value))}
+            />
+            <span className="label-control-value">{labelControls[selectedElement].offsetY}px</span>
+          </label>
+        </div>
+        <div className="label-preview">
+          <div className="label-row label-title-row">
+            <span className="label-title" style={applyControl('title')}>{previewProductName}</span>
+          </div>
+          <div className="label-row label-dates-row">
+            <span className="label-date" style={applyControl('dateLeft')}>{madeDay}.{madeMonth}</span>
+            <span className="label-infinity">∞</span>
+            <span className="label-date" style={applyControl('dateRight')}>{expDay}.{expMonth}</span>
+          </div>
+          <div className="label-row label-times-row">
+            <span className="label-time" style={applyControl('timeLeft')}>{madeHours}.{madeMinutes}</span>
+            <span className="label-time" style={applyControl('timeRight')}>{expHours}.{expMinutes}</span>
+          </div>
+        </div>
       </section>
 
       <section className="card">

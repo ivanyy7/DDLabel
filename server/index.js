@@ -8,7 +8,9 @@ const express = require('express');
 const cors = require('cors');
 const escpos = require('escpos');
 const usb = require('escpos-usb');
+const iconv = require('iconv-lite');
 const { printLabel } = require('./labelBuilder.js');
+const { buildTsplLabel } = require('./tsplDriver.js');
 const { resolveExpiry } = require('./shelfLife.js');
 const shelfStorage = require('./shelfStorage.js');
 const { parsePhraseWithMode } = require('./parsing/core/phraseEngine');
@@ -37,8 +39,9 @@ function parseDate(val) {
 }
 
 /**
- * Печать этикетки на USB-принтер (ESC/POS).
- * Если принтер не найден — отвечаем 503.
+ * Печать этикетки на USB-принтер.
+ * Текущая реализация: отправка TSPL-команд для режима этикеток XP-365B.
+ * Если принтер не найден или USB-коммуникация не удалась — отвечаем 503.
  */
 function doPrint(data, res) {
   function fail(msg, details) {
@@ -56,34 +59,74 @@ function doPrint(data, res) {
       fail('Принтер не найден');
       return;
     }
-    let device;
-    try {
-      device = new escpos.USB(devices[0]);
-    } catch (e) {
-      fail('Принтер не найден', e.message);
-      return;
-    }
-    device.open(function (err) {
-    if (err) {
-      console.error('[DDLabel] Не удалось открыть принтер:', err.message);
-      res.status(503).json({
-        ok: false,
-        error: 'Не удалось открыть принтер',
-        message: err.message
-      });
-      return;
-    }
-    const printer = new escpos.Printer(device, { encoding: 'cp866', width: 24 });
-    printLabel(printer, data);
-    printer.close(function (closeErr) {
-      if (closeErr) {
-        console.error('[DDLabel] Ошибка при печати:', closeErr.message);
-        res.status(503).json({ ok: false, error: 'Ошибка при печати', message: closeErr.message });
-        return;
-      }
-      res.status(200).json({ ok: true, message: 'Этикетка отправлена на печать.' });
+    const device = devices[0];
+
+    const cmd = buildTsplLabel({
+      productName: data.productLabelText || data.productName,
+      madeAt: data.madeAt,
+      expiresAt: data.expiresAt,
     });
-  });
+
+    try {
+      device.open();
+    } catch (e) {
+      fail('Не удалось открыть USB-устройство принтера', e.message);
+      return;
+    }
+
+    const iface = device.interfaces && device.interfaces[0];
+    if (!iface) {
+      fail('USB-интерфейс принтера не найден');
+      try { device.close(); } catch (_) {}
+      return;
+    }
+
+    try {
+      if (iface.isKernelDriverActive && iface.detachKernelDriver) {
+        try {
+          iface.detachKernelDriver();
+        } catch (_) {
+          // игнорируем: не на всех системах требуется/поддерживается
+        }
+      }
+      iface.claim();
+    } catch (e) {
+      fail('Не удалось захватить интерфейс принтера', e.message);
+      try { device.close(); } catch (_) {}
+      return;
+    }
+
+    const outEndpoint = (iface.endpoints || []).find((ep) => ep.direction === 'out');
+    if (!outEndpoint) {
+      fail('Выходной USB-эндпоинт принтера не найден');
+      try {
+        iface.release(true, () => {
+          try { device.close(); } catch (_) {}
+        });
+      } catch (_) {
+        try { device.close(); } catch (__ ) {}
+      }
+      return;
+    }
+
+    const buffer = iconv.encode(cmd, 'cp866');
+
+    outEndpoint.transfer(buffer, (err) => {
+      if (err) {
+        console.error('[DDLabel] Ошибка при передаче TSPL-команд:', err.message);
+        res.status(503).json({ ok: false, error: 'Ошибка при печати', message: err.message });
+      } else {
+        res.status(200).json({ ok: true, message: 'Этикетка отправлена на печать.' });
+      }
+
+      try {
+        iface.release(true, () => {
+          try { device.close(); } catch (_) {}
+        });
+      } catch (_) {
+        try { device.close(); } catch (__ ) {}
+      }
+    });
   } catch (e) {
     fail('Принтер не найден', e.message);
   }

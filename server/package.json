@@ -11,7 +11,8 @@
     "cors": "^2.8.5",
     "escpos": "^3.0.0-alpha.6",
     "escpos-usb": "^3.0.0-alpha.4",
-    "express": "^4.21.0"
+    "express": "^4.21.0",
+    "iconv-lite": "^0.7.2"
   },
   "overrides": {
     "usb": "1.8.8"
