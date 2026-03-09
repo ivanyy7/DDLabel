@@ -9,9 +9,9 @@ const cors = require('cors');
 const escpos = require('escpos');
 const usb = require('escpos-usb');
 const { printLabel } = require('./labelBuilder.js');
-const { parsePhrase } = require('./phraseParser.js');
 const { resolveExpiry } = require('./shelfLife.js');
 const shelfStorage = require('./shelfStorage.js');
+const { parsePhraseWithMode } = require('./parsing/core/phraseEngine');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -91,7 +91,7 @@ function doPrint(data, res) {
 
 /** Разбирает фразу и возвращает данные для этикетки или ошибку */
 function parseAndResolve(phrase) {
-  const parsed = parsePhrase(phrase);
+  const parsed = parsePhraseWithMode(phrase);
   if (parsed.error) return parsed;
   return resolveExpiry(parsed);
 }

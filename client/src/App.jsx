@@ -126,6 +126,12 @@ function App() {
     sendPhraseToPrint(text)
   }
 
+  const handleClearPhrase = () => {
+    setPhrase('')
+    setParsedResult(null)
+    setStatus(null)
+  }
+
   const handleShelfAdd = async () => {
     const name = (addName || '').trim()
     const d = Number(addDays)
@@ -343,14 +349,24 @@ function App() {
 
       <section className="card">
         <p>Фраза (продукт и дата/время изготовления):</p>
-        <input
-          type="text"
-          className="phrase-input"
-          placeholder="Бекон слайс, изготовление вчера в 18:10"
-          value={phrase}
-          onChange={(e) => setPhrase(e.target.value)}
-          disabled={loading || isListening}
-        />
+        <div className="phrase-row">
+          <input
+            type="text"
+            className="phrase-input phrase-input-main"
+            placeholder="Бекон слайс срок с 7 ноль третьего с 10 01"
+            value={phrase}
+            onChange={(e) => setPhrase(e.target.value)}
+            disabled={loading || isListening}
+          />
+          <button
+            type="button"
+            className="phrase-clear-btn"
+            onClick={handleClearPhrase}
+            disabled={loading || isListening || !phrase}
+          >
+            Сбросить
+          </button>
+        </div>
         <div className="card-buttons">
           <button onClick={handleParseOnly} disabled={loading || isListening}>
             {loading ? '…' : 'Только разобрать'}

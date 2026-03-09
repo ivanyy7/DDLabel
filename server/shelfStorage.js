@@ -23,6 +23,12 @@ function normalizeName(name) {
   return (name || '').toLowerCase().replace(/\s+/g, ' ').trim();
 }
 
+function tokenizeName(name) {
+  const norm = normalizeName(name);
+  if (!norm) return [];
+  return norm.split(' ');
+}
+
 /**
  * Читает массив записей из файла. При отсутствии файла возвращает [].
  */
@@ -76,6 +82,35 @@ function getByProductName(productName) {
     return aliases.some((a) => normalizeName(a) === key);
   });
   if (byAlias) return byAlias;
+
+  // Гибкий поиск: совпадение по наборам слов, независимо от порядка
+  const keyTokens = tokenizeName(productName);
+  if (keyTokens.length) {
+    for (const r of items) {
+      const nameTokens = tokenizeName(r.productName);
+      if (!nameTokens.length) continue;
+
+      const allKeyInName = keyTokens.every((t) => nameTokens.includes(t));
+      const allNameInKey = nameTokens.every((t) => keyTokens.includes(t));
+
+      if (allKeyInName || allNameInKey) {
+        return r;
+      }
+
+      const aliasTokensMatch =
+        (r.aliases || []).some((alias) => {
+          const aTokens = tokenizeName(alias);
+          if (!aTokens.length) return false;
+          const allKeyInAlias = keyTokens.every((t) => aTokens.includes(t));
+          const allAliasInKey = aTokens.every((t) => keyTokens.includes(t));
+          return allKeyInAlias || allAliasInKey;
+        });
+
+      if (aliasTokensMatch) return r;
+    }
+  }
+
+  // Старый мягкий поиск по подстроке оставляем как последний fallback
   for (const r of items) {
     const n = normalizeName(r.productName);
     if (key.startsWith(n) || key.includes(n)) return r;
