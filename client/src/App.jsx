@@ -55,9 +55,23 @@ function App() {
     return `${h} часов`
   }
 
+  // Нормализация фразы:
+  // - "6.03"  → "6 3"
+  // - "15:10" / "15.10" → "15 10"
+  // - одиночные "с" между словами/числами удаляем (оставляем только "срок").
+  const normalizePhrase = (text) => {
+    const raw = (text || '').trim()
+    if (!raw) return ''
+    return raw
+      .replace(/(\d{1,2})\.(\d{1,2})/g, '$1 $2')
+      .replace(/(\d{1,2}):(\d{1,2})/g, '$1 $2')
+      .replace(/\bс\b/gi, ' ')
+      .replace(/\s+/g, ' ')
+  }
+
   // Отправка фразы на разбор и печать (общая логика для кнопки и голоса)
   const sendPhraseToPrint = async (text) => {
-    const trimmed = (text || '').trim()
+    const trimmed = normalizePhrase(text)
     if (!trimmed) return
     setStatus(null)
     setParsedResult(null)
@@ -91,14 +105,28 @@ function App() {
     const Recognition = SpeechRecognitionAPI
     const recognition = new Recognition()
     recognition.lang = 'ru-RU'
-    recognition.continuous = false
+    // Делаем сессию распознавания более «длинной»,
+    // но не чрезмерной: даём ~10–11 секунд на фразу с паузами.
+    recognition.continuous = true
     recognition.interimResults = false
+    const sessionStart = Date.now()
+    const maxDurationMs = 10500
+    let hasFinalResult = false
     recognitionRef.current = recognition
 
     recognition.onresult = (event) => {
       const transcript = event.results[0][0].transcript
-      setPhrase(transcript)
-      sendPhraseToPrint(transcript)
+      const normalized = normalizePhrase(transcript)
+      hasFinalResult = true
+      setPhrase(normalized)
+      sendPhraseToPrint(normalized)
+      // После первого финального результата останавливаем распознавание,
+      // чтобы не накапливать лишние фразы.
+      try {
+        recognition.stop()
+      } catch {
+        // ignore
+      }
     }
 
     recognition.onerror = (event) => {
@@ -108,6 +136,16 @@ function App() {
     }
 
     recognition.onend = () => {
+      // Если финального результата ещё не было и общий лимит по времени не превышен,
+      // перезапускаем распознавание — так суммарное «окно» приёма фразы становится длиннее.
+      if (!hasFinalResult && Date.now() - sessionStart < maxDurationMs) {
+        try {
+          recognition.start()
+          return
+        } catch {
+          // ignore и завершаем сессию ниже
+        }
+      }
       setIsListening(false)
       recognitionRef.current = null
     }
@@ -118,7 +156,7 @@ function App() {
   }
 
   const handleParseAndPrint = () => {
-    const text = (phrase || '').trim()
+    const text = normalizePhrase(phrase)
     if (!text) {
       setStatus({ type: 'error', message: 'Введите фразу.' })
       return

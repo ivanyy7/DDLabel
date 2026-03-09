@@ -113,6 +113,15 @@ function wordToNumber(token) {
  * @param {string} phrase
  * @param {Date} [refDate] - опорная дата для года (по умолчанию сейчас)
  * @returns {{ productName: string, madeAt: Date } | { error: string }}
+ *
+ * Основной ожидаемый формат:
+ *   "<продукт> <ДД> <ММ> <ЧЧ> <ММ>"
+ * Примеры:
+ *   "Сыр Россия 7 03 14 30"
+ *   "бекон слайс 6 03.18 10" → после нормализации "бекон слайс 6 03 18 10"
+ *
+ * Дополнительно, на всякий случай, поддерживаются варианты со словом "срок":
+ *   "Сыр Россия срок 7 03 14 30"
  */
 function parsePhraseTemplate(phrase, refDate = new Date()) {
   if (!phrase || typeof phrase !== 'string') {
@@ -122,98 +131,87 @@ function parsePhraseTemplate(phrase, refDate = new Date()) {
   const raw = phrase.trim();
   if (!raw) return { error: 'Фраза пустая' };
 
-  const normalized = raw.replace(/\s+/g, ' ');
-  const lower = normalized.toLowerCase();
-
-  const keyword = 'срок';
-  const idx = lower.indexOf(keyword);
-  if (idx === -1) {
-    return { error: 'Не найдено слово «срок» в фразе.' };
-  }
-
-  // Продукт — всё до слова "срок"
-  const productPart = normalized
-    .slice(0, idx)
-    .replace(/[,–—\-]+$/g, '')
-    .trim();
-
-  if (!productPart) {
-    return { error: 'Не удалось определить название продукта до слова «срок».' };
-  }
-
-  // После "срок" ожидаем "с <ДД> <ММ> с <ЧЧ> <ММ>" — числа или слова
-  const afterRaw = normalized
-    .slice(idx + keyword.length)
+  // Базовая нормализация: убираем лишние пробелы, приводим `6.03` → `6 3`,
+  // одиночные "с" не нужны, запятые и тире заменяем на пробел.
+  const normalized = raw
+    .replace(/(\d{1,2})\.(\d{1,2})/g, '$1 $2')
+    .replace(/\bс\b/gi, ' ')
     .replace(/[,–—\-]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 
-  const tokens = afterRaw.split(/\s+/);
-  if (tokens[0] !== 'с' || tokens.length < 4) {
+  if (!normalized) return { error: 'Фраза пустая' };
+
+  const tokens = normalized.split(/\s+/);
+  if (tokens.length < 4) {
     return {
       error:
-        'Не получилось разобрать дату и время после слова «срок». ' +
-        'Говорите, например: «Сыр Россия срок с 7 3 с 14 05».',
+        'Не удалось найти в фразе дату и время изготовления. ' +
+        'Пример: «бекон слайс 6 03 18 10».',
     };
   }
 
-  // Ищем второе "с" — перед временем. Между ним и днём может быть один или несколько токенов месяца:
-  // "3 5" / "ноль третьего" / "три мая" и т.п.
-  const secondSIndex = tokens.indexOf('с', 2);
-  if (secondSIndex === -1 || secondSIndex >= tokens.length - 1) {
-    return {
-      error:
-        'Ожидалось слово «с» перед временем. Пример: «Сыр Россия срок с 7 3 с 14 05».',
-    };
+  /**
+   * Локальный помощник: пробуем разобрать последние N токенов как
+   * "<ДД> <ММ> <ЧЧ> <ММ>" или "<ДД> <ММ> <ЧЧ:ММ>".
+   */
+  function tryParseTail(count) {
+    if (tokens.length < count) return null;
+    const tail = tokens.slice(-count);
+    const [dayToken, monthToken, t1, t2] = tail;
+
+    const day = wordToNumber(dayToken);
+    const month = wordToNumber(monthToken);
+
+    let hours;
+    let minutes;
+
+    // Вариант с "ЧЧ.ММ" или "ЧЧ:ММ" в одном токене (count может быть 3 или 4)
+    if (t1 && (t1.includes('.') || t1.includes(':')) && (!t2 || count === 3)) {
+      const parts = t1.split(/[.:]/);
+      if (parts.length !== 2) return null;
+      hours = parseInt(parts[0], 10);
+      minutes = parseInt(parts[1], 10);
+    } else {
+      hours = wordToNumber(t1);
+      minutes = wordToNumber(t2);
+    }
+
+    if (Number.isNaN(day) || day < 1 || day > 31) return null;
+    if (Number.isNaN(month) || month < 1 || month > 12) return null;
+    if (Number.isNaN(hours) || hours < 0 || hours > 23) return null;
+    if (Number.isNaN(minutes) || minutes < 0 || minutes > 59) return null;
+
+    const productTokens = tokens.slice(0, tokens.length - count);
+
+    // Если в начале оставилось слово "срок", выбрасываем его.
+    if (productTokens[productTokens.length - 1]?.toLowerCase() === 'срок') {
+      productTokens.pop();
+    }
+
+    const productPart = productTokens.join(' ').replace(/[,–—\-]+$/g, '').trim();
+    if (!productPart) return { error: 'Не удалось определить название продукта в начале фразы.' };
+
+    const year = refDate.getFullYear();
+    const madeAt = new Date(year, month - 1, day, hours, minutes, 0, 0);
+    return { productName: productPart, madeAt };
   }
 
-  // День: либо одно слово/число, либо "ноль восьмого" (два слова)
-  let dayPhrase = tokens[1];
-  let monthStartIndex = 2;
-  if (tokens[1] === 'ноль' && tokens.length > 2 && tokens[2] !== 'с') {
-    dayPhrase = `${tokens[1]} ${tokens[2]}`;
-    monthStartIndex = 3;
-  }
+  // Сначала пробуем самый ожидаемый вариант: 4 токена в конце (ДД ММ ЧЧ ММ)
+  let result = tryParseTail(4);
+  if (result && !result.error) return result;
 
-  const monthPhrase = tokens.slice(monthStartIndex, secondSIndex).join(' ');
-  const timeToken1 = tokens[secondSIndex + 1];
-  const timeToken2 = tokens[secondSIndex + 2];
+  // Если не получилось — пробуем вариант с тремя токенами (ДД ММ ЧЧ:ММ)
+  result = tryParseTail(3);
+  if (result && !result.error) return result;
 
-  const day = wordToNumber(dayPhrase);
-  const month = wordToNumber(monthPhrase);
-
-  let hours;
-  let minutes;
-
-  // Время можно говорить как "14 05" или "15.10"
-  if (timeToken1 && timeToken1.includes('.') && !timeToken2) {
-    const parts = timeToken1.split('.');
-    hours = parseInt(parts[0], 10);
-    minutes = parseInt(parts[1], 10);
-  } else {
-    hours = wordToNumber(timeToken1);
-    minutes = wordToNumber(timeToken2);
-  }
-
-  if (Number.isNaN(day) || day < 1 || day > 31) {
-    return { error: 'Некорректный день изготовления.' };
-  }
-  if (Number.isNaN(month) || month < 1 || month > 12) {
-    return { error: 'Некорректный месяц изготовления.' };
-  }
-  if (Number.isNaN(hours) || hours < 0 || hours > 23) {
-    return { error: 'Некорректный час изготовления.' };
-  }
-  if (Number.isNaN(minutes) || minutes < 0 || minutes > 59) {
-    return { error: 'Некорректные минуты изготовления.' };
-  }
-
-  const year = refDate.getFullYear();
-  const madeAt = new Date(year, month - 1, day, hours, minutes, 0, 0);
+  // Если и это не удалось — возвращаем первую осмысленную ошибку либо общую.
+  if (result && result.error) return result;
 
   return {
-    productName: productPart,
-    madeAt,
+    error:
+      'Не удалось разобрать дату и время изготовления. ' +
+      'Говорите, например: «бекон слайс 6 03 18 10».',
   };
 }
 
