@@ -10,7 +10,7 @@ const escpos = require('escpos');
 const usb = require('escpos-usb');
 const iconv = require('iconv-lite');
 const { printLabel } = require('./labelBuilder.js');
-const { buildTsplLabel, buildTsplTestDates } = require('./tsplDriver.js');
+const { buildTsplLabel, buildTsplTestDates, TSPL_FONTS } = require('./tsplDriver.js');
 const { resolveExpiry } = require('./shelfLife.js');
 const shelfStorage = require('./shelfStorage.js');
 const { parsePhraseWithMode } = require('./parsing/core/phraseEngine');
@@ -181,34 +181,47 @@ app.post('/api/print', (req, res) => {
   doPrint({ productName, madeAt, expiresAt, productLabelText }, res);
 });
 
-// Тестовая печать ТОЛЬКО СРЕДНЕГО РЯДА (две даты + ∞) — без парсера и без названия/времени.
+app.get('/api/tspl-fonts', (_req, res) => {
+  const list = Object.entries(TSPL_FONTS).map(([id, info]) => ({ id, ...info }));
+  res.json({ ok: true, fonts: list });
+});
+
 app.post('/api/test-print', (req, res) => {
   const body = req.body || {};
-  const productName = body.productName != null ? String(body.productName) : defaultLabel.productName;
   const madeAt = parseDate(body.madeAt != null ? body.madeAt : defaultLabel.madeAt);
   const expiresAt = parseDate(body.expiresAt != null ? body.expiresAt : defaultLabel.expiresAt);
-  const sizeLeft = body.sizeLeft;
-  const sizeRight = body.sizeRight;
-  const offsetXLeft = body.offsetXLeft;
-  const offsetYLeft = body.offsetYLeft;
-  const offsetXRight = body.offsetXRight;
-  const offsetYRight = body.offsetYRight;
-  const stretchLeft = body.stretchLeft;
-  const stretchRight = body.stretchRight;
-  const productLabelText = shelfStorage.getLabelText(productName);
+
   doPrint({
-    productName,
     madeAt,
     expiresAt,
-    productLabelText,
-    sizeLeft,
-    sizeRight,
-    offsetXLeft,
-    offsetYLeft,
-    offsetXRight,
-    offsetYRight,
-    stretchLeft,
-    stretchRight,
+    density: body.density,
+    speed: body.speed,
+    titleText: body.titleText,
+    fontTitle: body.fontTitle,
+    sxTitle: body.sxTitle,
+    syTitle: body.syTitle,
+    xTitle: body.xTitle,
+    yTitle: body.yTitle,
+    fontLeft: body.fontLeft,
+    sxLeft: body.sxLeft,
+    syLeft: body.syLeft,
+    xLeft: body.xLeft,
+    yLeft: body.yLeft,
+    fontRight: body.fontRight,
+    sxRight: body.sxRight,
+    syRight: body.syRight,
+    xRight: body.xRight,
+    yRight: body.yRight,
+    fontTimeLeft: body.fontTimeLeft,
+    sxTimeLeft: body.sxTimeLeft,
+    syTimeLeft: body.syTimeLeft,
+    xTimeLeft: body.xTimeLeft,
+    yTimeLeft: body.yTimeLeft,
+    fontTimeRight: body.fontTimeRight,
+    sxTimeRight: body.sxTimeRight,
+    syTimeRight: body.syTimeRight,
+    xTimeRight: body.xTimeRight,
+    yTimeRight: body.yTimeRight,
   }, res, buildTsplTestDates);
 });
 

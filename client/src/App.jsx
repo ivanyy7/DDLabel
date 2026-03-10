@@ -8,6 +8,48 @@ const LABEL_LAST_TEMPLATE_KEY = 'ddlabel_last_template'
 
 const SpeechRecognitionAPI = typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition)
 
+const TSPL_FONTS = [
+  { id: '1', w: 8,  h: 12, name: '1 — 8×12 (мелкий)' },
+  { id: '2', w: 12, h: 20, name: '2 — 12×20 (стандартный)' },
+  { id: '3', w: 16, h: 24, name: '3 — 16×24 (средний)' },
+  { id: '4', w: 24, h: 32, name: '4 — 24×32 (крупный)' },
+  { id: '5', w: 32, h: 48, name: '5 — 32×48 (очень крупный)' },
+  { id: '8', w: 14, h: 25, name: '8 — 14×25 (жирный)' },
+]
+
+const WIDTH_PRESETS = (() => {
+  const result = []
+  for (const f of TSPL_FONTS) {
+    for (let sx = 1; sx <= 4; sx++) {
+      const charW = f.w * sx
+      if (charW > 40) continue
+      result.push({ font: f.id, sx, charW, baseH: f.h, key: `${f.id}_${sx}` })
+    }
+  }
+  result.sort((a, b) => a.charW - b.charW || a.baseH - b.baseH)
+  return result
+})()
+
+function widthPresetLabel(p) {
+  const sxNote = p.sx > 1 ? `, sx=${p.sx}` : ''
+  return `${p.charW} точек (шрифт ${p.font}${sxNote}, выс. базовая ${p.baseH})`
+}
+
+function findWidthPreset(font, sx) {
+  return WIDTH_PRESETS.find((p) => p.font === font && p.sx === sx) || WIDTH_PRESETS[1]
+}
+
+const defaultTsplParams = {
+  density: 1,
+  speed: 4,
+  titleText: 'сыр Российский',
+  title: { font: '3', sx: 1, sy: 2, x: 20, y: 25 },
+  left: { font: '3', sx: 1, sy: 2, x: 18, y: 80 },
+  right: { font: '3', sx: 1, sy: 2, x: 145, y: 80 },
+  timeLeft: { font: '1', sx: 2, sy: 2, x: 18, y: 135 },
+  timeRight: { font: '1', sx: 2, sy: 2, x: 145, y: 135 },
+}
+
 const defaultLabelControls = {
   title: { fontSize: 18, offsetX: 0, offsetY: 0, weight: 0, stretch: 0 },
   dateLeft: { fontSize: 32, offsetX: 0, offsetY: 0, weight: 0, stretch: 0 },
@@ -88,6 +130,20 @@ function App() {
   const [calibDay, setCalibDay] = useState('9')
   const [calibMonth, setCalibMonth] = useState('3')
 
+  const [tsplParams, setTsplParams] = useState(() => {
+    const last = typeof localStorage !== 'undefined' ? localStorage.getItem(LABEL_LAST_TEMPLATE_KEY) : null
+    const all = loadLabelTemplatesFromStorage()
+    if (last && all[last] && all[last].tsplParams) return all[last].tsplParams
+    return defaultTsplParams
+  })
+
+  const updateTsplSide = (side, field, value) => {
+    setTsplParams((prev) => ({
+      ...prev,
+      [side]: { ...prev[side], [field]: value },
+    }))
+  }
+
   const loadShelf = async () => {
     setShelfLoading(true)
     setShelfStatus(null)
@@ -120,7 +176,7 @@ function App() {
       return
     }
     const all = loadLabelTemplatesFromStorage()
-    all[name] = { labelControls, labelVisibility, selectedElement }
+    all[name] = { labelControls, labelVisibility, selectedElement, tsplParams }
     try {
       localStorage.setItem(LABEL_TEMPLATES_KEY, JSON.stringify(all))
       localStorage.setItem(LABEL_LAST_TEMPLATE_KEY, name)
@@ -147,6 +203,7 @@ function App() {
     setLabelControls(t.labelControls || defaultLabelControls)
     setLabelVisibility(t.labelVisibility || defaultLabelVisibility)
     if (t.selectedElement) setSelectedElement(t.selectedElement)
+    setTsplParams(t.tsplParams || defaultTsplParams)
     localStorage.setItem(LABEL_LAST_TEMPLATE_KEY, name)
     setLabelTemplateStatus({ type: 'ok', message: `Загружен шаблон «${name}».` })
   }
@@ -676,140 +733,198 @@ function App() {
           </label>
         </div>
         <div className="label-controls">
+          <h3 style={{ margin: '0.5rem 0' }}>Параметры TSPL (прямые значения для принтера)</h3>
+          <p className="card-desc">Этикетка 30×20 мм = 240×160 точек (203 dpi). Каждый параметр идёт напрямую в команду принтера без конвертаций.</p>
           <label className="label-control">
-            Элемент
-            <select
-              value={selectedElement}
-              onChange={(e) => setSelectedElement(e.target.value)}
-            >
-              <option value="title">Название продукта</option>
-              <option value="dateLeft">Дата слева</option>
-              <option value="dateRight">Дата справа</option>
-              <option value="infinity">Знак бесконечности</option>
-              <option value="timeLeft">Время слева</option>
-              <option value="timeRight">Время справа</option>
-            </select>
+            Плотность печати (DENSITY) — нагрев
+            <input
+              type="range"
+              min="0"
+              max="15"
+              value={tsplParams.density}
+              onChange={(e) => setTsplParams((p) => ({ ...p, density: Number(e.target.value) }))}
+            />
+            <span className="label-control-value">{tsplParams.density} {tsplParams.density === 0 ? '(минимум)' : tsplParams.density <= 5 ? '(светло)' : tsplParams.density <= 10 ? '(норма)' : '(жирно)'}</span>
           </label>
-          <div className="label-control label-control-inline">
-            <span>Показать строки</span>
-            <div className="label-visibility-row">
-              <label>
+          <label className="label-control">
+            Скорость печати (SPEED) — толщина линий
+            <input
+              type="range"
+              min="1"
+              max="5"
+              value={tsplParams.speed || 4}
+              onChange={(e) => setTsplParams((p) => ({ ...p, speed: Number(e.target.value) }))}
+            />
+            <span className="label-control-value">{tsplParams.speed || 4} {(tsplParams.speed || 4) <= 2 ? '(медленно → жирнее)' : (tsplParams.speed || 4) >= 4 ? '(быстро → тоньше)' : '(средне)'}</span>
+          </label>
+          {(() => {
+            const tp = tsplParams.title || defaultTsplParams.title
+            const curPreset = findWidthPreset(tp.font, tp.sx)
+            const fi = TSPL_FONTS.find((f) => f.id === tp.font)
+            const charW = fi ? fi.w * (tp.sx || 1) : 0
+            const charH = fi ? fi.h * (tp.sy || 1) : 0
+            return (
+            <fieldset className="tspl-side-fieldset">
+              <legend>Название продукта (верх)</legend>
+              <label className="label-control">
+                Текст для печати
                 <input
-                  type="checkbox"
-                  checked={labelVisibility.title}
-                  onChange={() => handleLabelVisibilityToggle('title')}
+                  type="text"
+                  className="phrase-input shelf-input"
+                  placeholder="сыр Российский"
+                  value={tsplParams.titleText ?? defaultTsplParams.titleText}
+                  onChange={(e) => setTsplParams((p) => ({ ...p, titleText: e.target.value }))}
                 />
-                Название
               </label>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={labelVisibility.dateLeft}
-                  onChange={() => handleLabelVisibilityToggle('dateLeft')}
-                />
-                Дата слева
+              <label className="label-control">
+                Ширина символа (шрифт + масштаб)
+                <select
+                  value={curPreset.key}
+                  onChange={(e) => {
+                    const p = WIDTH_PRESETS.find((wp) => wp.key === e.target.value)
+                    if (p) {
+                      setTsplParams((prev) => ({
+                        ...prev,
+                        title: { ...prev.title, font: p.font, sx: p.sx },
+                      }))
+                    }
+                  }}
+                >
+                  {WIDTH_PRESETS.map((p) => (
+                    <option key={p.key} value={p.key}>{widthPresetLabel(p)}</option>
+                  ))}
+                </select>
               </label>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={labelVisibility.dateRight}
-                  onChange={() => handleLabelVisibilityToggle('dateRight')}
-                />
-                Дата справа
+              <div className="tspl-row">
+                <label className="label-control tspl-num-label">
+                  sy (высота)
+                  <input type="number" min="1" max="10" value={tp.sy} onChange={(e) => updateTsplSide('title', 'sy', Number(e.target.value))} className="tspl-num-input" />
+                </label>
+                <label className="label-control tspl-num-label">
+                  x (0–240)
+                  <input type="number" min="0" max="240" value={tp.x} onChange={(e) => updateTsplSide('title', 'x', Number(e.target.value))} className="tspl-num-input" />
+                </label>
+                <label className="label-control tspl-num-label">
+                  y (0–160)
+                  <input type="number" min="0" max="160" value={tp.y} onChange={(e) => updateTsplSide('title', 'y', Number(e.target.value))} className="tspl-num-input" />
+                </label>
+              </div>
+              <p className="tspl-hint">
+                Символ: {charW}×{charH} точек ({(charW / 8).toFixed(1)}×{(charH / 8).toFixed(1)} мм).
+                {(tsplParams.titleText ?? defaultTsplParams.titleText).length > 0 &&
+                  ` Строка ≈ ${charW * (tsplParams.titleText ?? defaultTsplParams.titleText).length} точек (${(charW * (tsplParams.titleText ?? defaultTsplParams.titleText).length / 8).toFixed(1)} мм).`}
+                {charW * (tsplParams.titleText ?? defaultTsplParams.titleText).length > 240 && <strong style={{ color: '#c00' }}> Текст шире этикетки!</strong>}
+              </p>
+            </fieldset>
+            )
+          })()}
+          {['left', 'right'].map((side) => {
+            const curPreset = findWidthPreset(tsplParams[side].font, tsplParams[side].sx)
+            const fi = TSPL_FONTS.find((f) => f.id === tsplParams[side].font)
+            const charW = fi ? fi.w * (tsplParams[side].sx || 1) : 0
+            const charH = fi ? fi.h * (tsplParams[side].sy || 1) : 0
+            const dateW = charW * 5
+            return (
+            <fieldset key={side} className="tspl-side-fieldset">
+              <legend>{side === 'left' ? 'Левая дата (начало)' : 'Правая дата (конец)'}</legend>
+              <label className="label-control">
+                Ширина символа (шрифт + масштаб)
+                <select
+                  value={curPreset.key}
+                  onChange={(e) => {
+                    const p = WIDTH_PRESETS.find((wp) => wp.key === e.target.value)
+                    if (p) {
+                      setTsplParams((prev) => ({
+                        ...prev,
+                        [side]: { ...prev[side], font: p.font, sx: p.sx },
+                      }))
+                    }
+                  }}
+                >
+                  {WIDTH_PRESETS.map((p) => (
+                    <option key={p.key} value={p.key}>{widthPresetLabel(p)}</option>
+                  ))}
+                </select>
               </label>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={labelVisibility.infinity}
-                  onChange={() => handleLabelVisibilityToggle('infinity')}
-                />
-                Знак ∞
+              <div className="tspl-row">
+                <label className="label-control tspl-num-label">
+                  sy (высота)
+                  <input type="number" min="1" max="10" value={tsplParams[side].sy} onChange={(e) => updateTsplSide(side, 'sy', Number(e.target.value))} className="tspl-num-input" />
+                </label>
+                <label className="label-control tspl-num-label">
+                  x (0–240)
+                  <input type="number" min="0" max="240" value={tsplParams[side].x} onChange={(e) => updateTsplSide(side, 'x', Number(e.target.value))} className="tspl-num-input" />
+                </label>
+                <label className="label-control tspl-num-label">
+                  y (0–160)
+                  <input type="number" min="0" max="160" value={tsplParams[side].y} onChange={(e) => updateTsplSide(side, 'y', Number(e.target.value))} className="tspl-num-input" />
+                </label>
+              </div>
+              <p className="tspl-hint">
+                Символ: {charW}×{charH} точек ({(charW / 8).toFixed(1)}×{(charH / 8).toFixed(1)} мм).
+                «10.03» = {dateW}×{charH} точек ({(dateW / 8).toFixed(1)} мм).
+                {dateW > 110 && <strong style={{ color: '#c00' }}> Дата шире половины этикетки!</strong>}
+              </p>
+            </fieldset>
+            )
+          })}
+          {['timeLeft', 'timeRight'].map((side) => {
+            const params = tsplParams[side] || defaultTsplParams[side]
+            const curPreset = findWidthPreset(params.font, params.sx)
+            const fi = TSPL_FONTS.find((f) => f.id === params.font)
+            const charW = fi ? fi.w * (params.sx || 1) : 0
+            const charH = fi ? fi.h * (params.sy || 1) : 0
+            const timeW = charW * 5
+            return (
+            <fieldset key={side} className="tspl-side-fieldset">
+              <legend>{side === 'timeLeft' ? 'Левое время (начало)' : 'Правое время (конец)'}</legend>
+              <label className="label-control">
+                Ширина символа (шрифт + масштаб)
+                <select
+                  value={curPreset.key}
+                  onChange={(e) => {
+                    const p = WIDTH_PRESETS.find((wp) => wp.key === e.target.value)
+                    if (p) {
+                      setTsplParams((prev) => ({
+                        ...prev,
+                        [side]: { ...prev[side], font: p.font, sx: p.sx },
+                      }))
+                    }
+                  }}
+                >
+                  {WIDTH_PRESETS.map((p) => (
+                    <option key={p.key} value={p.key}>{widthPresetLabel(p)}</option>
+                  ))}
+                </select>
               </label>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={labelVisibility.timeLeft}
-                  onChange={() => handleLabelVisibilityToggle('timeLeft')}
-                />
-                Время слева
-              </label>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={labelVisibility.timeRight}
-                  onChange={() => handleLabelVisibilityToggle('timeRight')}
-                />
-                Время справа
-              </label>
-            </div>
+              <div className="tspl-row">
+                <label className="label-control tspl-num-label">
+                  sy (высота)
+                  <input type="number" min="1" max="10" value={params.sy} onChange={(e) => updateTsplSide(side, 'sy', Number(e.target.value))} className="tspl-num-input" />
+                </label>
+                <label className="label-control tspl-num-label">
+                  x (0–240)
+                  <input type="number" min="0" max="240" value={params.x} onChange={(e) => updateTsplSide(side, 'x', Number(e.target.value))} className="tspl-num-input" />
+                </label>
+                <label className="label-control tspl-num-label">
+                  y (0–160)
+                  <input type="number" min="0" max="160" value={params.y} onChange={(e) => updateTsplSide(side, 'y', Number(e.target.value))} className="tspl-num-input" />
+                </label>
+              </div>
+              <p className="tspl-hint">
+                Символ: {charW}×{charH} точек ({(charW / 8).toFixed(1)}×{(charH / 8).toFixed(1)} мм).
+                «10.00» = {timeW}×{charH} точек ({(timeW / 8).toFixed(1)} мм).
+                {timeW > 110 && <strong style={{ color: '#c00' }}> Время шире половины этикетки!</strong>}
+              </p>
+            </fieldset>
+            )
+          })}
+          <div className="tspl-row" style={{ marginTop: '0.25rem', gap: '0.5rem' }}>
+            <button type="button" onClick={() => {
+              setTsplParams((p) => ({ ...p, right: { ...p.left }, timeRight: { ...p.timeLeft } }))
+            }} className="tspl-copy-btn">Скопировать Left → Right</button>
+            <button type="button" onClick={() => setTsplParams(defaultTsplParams)} className="tspl-copy-btn">Сбросить всё</button>
           </div>
-          <label className="label-control">
-            Размер шрифта
-            <input
-              type="range"
-              min="10"
-              max="60"
-              value={labelControls[selectedElement].fontSize}
-              onChange={(e) => handleLabelControlChange('fontSize', Number(e.target.value))}
-            />
-            <span className="label-control-value">{labelControls[selectedElement].fontSize}px</span>
-          </label>
-          <label className="label-control">
-            Сдвиг по X (влево/вправо)
-            <input
-              type="range"
-              min="-40"
-              max="40"
-              value={labelControls[selectedElement].offsetX}
-              onChange={(e) => handleLabelControlChange('offsetX', Number(e.target.value))}
-            />
-            <span className="label-control-value">{labelControls[selectedElement].offsetX}px</span>
-          </label>
-          <label className="label-control">
-            Сдвиг по Y (вверх/вниз)
-            <input
-              type="range"
-              min="-40"
-              max="40"
-              value={labelControls[selectedElement].offsetY}
-              onChange={(e) => handleLabelControlChange('offsetY', Number(e.target.value))}
-            />
-            <span className="label-control-value">{labelControls[selectedElement].offsetY}px</span>
-          </label>
-          <label className="label-control">
-            Жирность текста
-            <input
-              type="range"
-              min="-3"
-              max="2"
-              value={labelControls[selectedElement].weight}
-              onChange={(e) => handleLabelControlChange('weight', Number(e.target.value))}
-            />
-            <span className="label-control-value">
-              {labelControls[selectedElement].weight > 0
-                ? 'чуть жирнее'
-                : labelControls[selectedElement].weight < 0
-                  ? 'чуть тоньше'
-                  : 'нормальная'}
-            </span>
-          </label>
-          <label className="label-control">
-            Сжатие / растяжение по ширине
-            <input
-              type="range"
-              min="-6"
-              max="6"
-              value={labelControls[selectedElement].stretch}
-              onChange={(e) => handleLabelControlChange('stretch', Number(e.target.value))}
-            />
-            <span className="label-control-value">
-              {labelControls[selectedElement].stretch > 0
-                ? `шире +${labelControls[selectedElement].stretch}`
-                : labelControls[selectedElement].stretch < 0
-                  ? `уже ${labelControls[selectedElement].stretch}`
-                  : 'по умолчанию'}
-            </span>
-          </label>
         </div>
         <div className="card-buttons" style={{ marginTop: '0.5rem' }}>
           <button
@@ -826,23 +941,43 @@ function App() {
                   expiresForTest.setMonth(numericCalibMonth - 1)
                   expiresForTest.setDate(numericCalibDay)
                 }
-                const left = labelControls.dateLeft
-                const right = labelControls.dateRight
+                const tl = tsplParams.timeLeft || defaultTsplParams.timeLeft
+                const tr = tsplParams.timeRight || defaultTsplParams.timeRight
+                const tt = tsplParams.title || defaultTsplParams.title
                 const res = await fetch(`${API_BASE}/api/test-print`, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
-                    productName: previewProductName,
                     madeAt: madeForTest.toISOString(),
                     expiresAt: expiresForTest.toISOString(),
-                    sizeLeft: left.fontSize,
-                    sizeRight: right.fontSize,
-                    offsetXLeft: left.offsetX,
-                    offsetYLeft: left.offsetY,
-                    offsetXRight: right.offsetX,
-                    offsetYRight: right.offsetY,
-                    stretchLeft: left.stretch,
-                    stretchRight: right.stretch,
+                    density: tsplParams.density,
+                    speed: tsplParams.speed || 4,
+                    titleText: tsplParams.titleText ?? defaultTsplParams.titleText,
+                    fontTitle: tt.font,
+                    sxTitle: tt.sx,
+                    syTitle: tt.sy,
+                    xTitle: tt.x,
+                    yTitle: tt.y,
+                    fontLeft: tsplParams.left.font,
+                    sxLeft: tsplParams.left.sx,
+                    syLeft: tsplParams.left.sy,
+                    xLeft: tsplParams.left.x,
+                    yLeft: tsplParams.left.y,
+                    fontRight: tsplParams.right.font,
+                    sxRight: tsplParams.right.sx,
+                    syRight: tsplParams.right.sy,
+                    xRight: tsplParams.right.x,
+                    yRight: tsplParams.right.y,
+                    fontTimeLeft: tl.font,
+                    sxTimeLeft: tl.sx,
+                    syTimeLeft: tl.sy,
+                    xTimeLeft: tl.x,
+                    yTimeLeft: tl.y,
+                    fontTimeRight: tr.font,
+                    sxTimeRight: tr.sx,
+                    syTimeRight: tr.sy,
+                    xTimeRight: tr.x,
+                    yTimeRight: tr.y,
                   }),
                 })
                 const data = await res.json().catch(() => ({}))
@@ -859,34 +994,44 @@ function App() {
             }}
             disabled={loading || isListening}
           >
-            Тестовая печать (без фразы)
+            Тестовая печать
           </button>
         </div>
-        <div className="label-preview" style={previewStyle}>
-          <div className="label-center-guides" />
-          <div className="label-row label-title-row">
-            {labelVisibility.title && (
-              <span className="label-title" style={applyControl('title')}>{previewProductName}</span>
+        <div className="label-preview">
+          <div className="label-preview-grid">
+            <span className="label-preview-size">240×160 точек (30×20 мм)</span>
+            {(tsplParams.titleText ?? defaultTsplParams.titleText) && (
+              <span
+                className="label-preview-dot label-preview-dot-title"
+                style={{ left: `${((tsplParams.title || defaultTsplParams.title).x / 240) * 100}%`, top: `${((tsplParams.title || defaultTsplParams.title).y / 160) * 100}%`, fontSize: '0.5rem' }}
+              >
+                {tsplParams.titleText ?? defaultTsplParams.titleText}
+              </span>
             )}
-          </div>
-          <div className="label-row label-dates-row" style={datesRowStyle}>
-            {labelVisibility.dateLeft && (
-              <span className="label-date" style={applyControl('dateLeft')}>{madeDay}.{madeMonth}</span>
-            )}
-            {labelVisibility.infinity && (
-              <span className="label-infinity" style={applyControl('infinity')}>∞</span>
-            )}
-            {labelVisibility.dateRight && (
-              <span className="label-date" style={applyControl('dateRight')}>{expDay}.{expMonth}</span>
-            )}
-          </div>
-          <div className="label-row label-times-row">
-            {labelVisibility.timeLeft && (
-              <span className="label-time" style={applyControl('timeLeft')}>{madeHours}.{madeMinutes}</span>
-            )}
-            {labelVisibility.timeRight && (
-              <span className="label-time" style={applyControl('timeRight')}>{expHours}.{expMinutes}</span>
-            )}
+            <span
+              className="label-preview-dot label-preview-dot-left"
+              style={{ left: `${(tsplParams.left.x / 240) * 100}%`, top: `${(tsplParams.left.y / 160) * 100}%` }}
+            >
+              {madeDay}.{madeMonth}
+            </span>
+            <span
+              className="label-preview-dot label-preview-dot-right"
+              style={{ left: `${(tsplParams.right.x / 240) * 100}%`, top: `${(tsplParams.right.y / 160) * 100}%` }}
+            >
+              {expDay}.{expMonth}
+            </span>
+            <span
+              className="label-preview-dot label-preview-dot-left"
+              style={{ left: `${((tsplParams.timeLeft || defaultTsplParams.timeLeft).x / 240) * 100}%`, top: `${((tsplParams.timeLeft || defaultTsplParams.timeLeft).y / 160) * 100}%`, fontSize: '0.55rem' }}
+            >
+              {madeHours}.{madeMinutes}
+            </span>
+            <span
+              className="label-preview-dot label-preview-dot-right"
+              style={{ left: `${((tsplParams.timeRight || defaultTsplParams.timeRight).x / 240) * 100}%`, top: `${((tsplParams.timeRight || defaultTsplParams.timeRight).y / 160) * 100}%`, fontSize: '0.55rem' }}
+            >
+              {expHours}.{expMinutes}
+            </span>
           </div>
         </div>
       </section>

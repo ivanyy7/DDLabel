@@ -64,97 +64,122 @@ function buildTsplLabel(payload) {
 }
 
 /**
- * Тестовый TSPL-шаблон для КАЛИБРОВКИ только СРЕДНЕГО РЯДА:
- * печатаем ТОЛЬКО две даты. Никакого названия продукта и времени.
- *
- * ВАЖНО: здесь нет «магии» — каждый параметр идёт 1:1 из ползунков:
- * - sizeLeft/sizeRight (пиксели в UI) → syLeft/syRight (масштаб по высоте);
- * - stretchLeft/right (ползунок -6…6) → sxLeft/sxRight (масштаб по X), тонкая настройка;
- * - offsetX/offsetY (ползунки) → линейный сдвиг координат.
- *
- * Одну и ту же формулу используем и в превью (через CSS), и в TSPL.
+ * Встроенные шрифты TSPL (XP-365B, 203 dpi).
+ * Ключ = номер шрифта для команды TEXT.
+ */
+const TSPL_FONTS = {
+  '1': { w: 8,  h: 12, name: '1 — 8×12 (мелкий)' },
+  '2': { w: 12, h: 20, name: '2 — 12×20 (стандартный)' },
+  '3': { w: 16, h: 24, name: '3 — 16×24 (средний)' },
+  '4': { w: 24, h: 32, name: '4 — 24×32 (крупный)' },
+  '5': { w: 32, h: 48, name: '5 — 32×48 (очень крупный)' },
+  '8': { w: 14, h: 25, name: '8 — 14×25 (жирный)' },
+};
+
+/**
+ * Тестовый TSPL-шаблон для КАЛИБРОВКИ.
+ * Все параметры — прямые значения TSPL без конвертаций из CSS:
+ *   font — номер встроенного шрифта ("1"–"5", "8")
+ *   sx, sy — целочисленный масштаб (1–10)
+ *   x, y — координаты в точках (203 dpi, этикетка ≈240×160)
+ *   density — плотность печати (1–15)
  */
 function buildTsplTestDates(payload) {
   const {
     madeAt,
     expiresAt,
-    darkness = 10,
-    sizeLeft,
-    sizeRight,
-    offsetXLeft,
-    offsetYLeft,
-    offsetXRight,
-    offsetYRight,
-    stretchLeft,
-    stretchRight,
+    density = 8,
+    speed = 4,
+    titleText = '',
+    fontTitle = '2',
+    sxTitle = 1,
+    syTitle = 1,
+    xTitle = 10,
+    yTitle = 5,
+    fontLeft = '2',
+    sxLeft = 1,
+    syLeft = 1,
+    xLeft = 10,
+    yLeft = 60,
+    fontRight = '2',
+    sxRight = 1,
+    syRight = 1,
+    xRight = 140,
+    yRight = 60,
+    fontTimeLeft = '3',
+    sxTimeLeft = 1,
+    syTimeLeft = 1,
+    xTimeLeft = 20,
+    yTimeLeft = 125,
+    fontTimeRight = '3',
+    sxTimeRight = 1,
+    syTimeRight = 1,
+    xTimeRight = 150,
+    yTimeRight = 125,
   } = payload;
 
   const pad2 = (n) => String(n).padStart(2, '0');
   const madeDay = pad2(madeAt.getDate());
   const madeMonth = pad2(madeAt.getMonth() + 1);
+  const madeHours = pad2(madeAt.getHours());
+  const madeMinutes = pad2(madeAt.getMinutes());
   const expDay = pad2(expiresAt.getDate());
   const expMonth = pad2(expiresAt.getMonth() + 1);
+  const expHours = pad2(expiresAt.getHours());
+  const expMinutes = pad2(expiresAt.getMinutes());
 
-  // 1) Размер/высота: из «пикселей» (10–60) считаем масштаб TSPL.
-  // Используем floor, чтобы 37 и 38 (и соседние значения) не давали скачок 2→3 — иначе этикетка «прыгает» вверх/вниз.
-  const toSy = (uiSize) => {
-    const v = Number(uiSize) || 32;
-    return Math.max(1, Math.min(6, Math.floor(v / 15))); // 15–29→1, 30–44→2, 45–59→3, …
-  };
-  const syLeft = toSy(sizeLeft);
-  const syRight = toSy(sizeRight);
+  const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, Number(v) || lo));
+  const fT = TSPL_FONTS[String(fontTitle)] ? String(fontTitle) : '2';
+  const fL = TSPL_FONTS[String(fontLeft)] ? String(fontLeft) : '2';
+  const fR = TSPL_FONTS[String(fontRight)] ? String(fontRight) : '2';
+  const fTL = TSPL_FONTS[String(fontTimeLeft)] ? String(fontTimeLeft) : '3';
+  const fTR = TSPL_FONTS[String(fontTimeRight)] ? String(fontTimeRight) : '3';
+  const _sxT = clamp(sxTitle, 1, 10);
+  const _syT = clamp(syTitle, 1, 10);
+  const _sxL = clamp(sxLeft, 1, 10);
+  const _syL = clamp(syLeft, 1, 10);
+  const _sxR = clamp(sxRight, 1, 10);
+  const _syR = clamp(syRight, 1, 10);
+  const _sxTL = clamp(sxTimeLeft, 1, 10);
+  const _syTL = clamp(syTimeLeft, 1, 10);
+  const _sxTR = clamp(sxTimeRight, 1, 10);
+  const _syTR = clamp(syTimeRight, 1, 10);
+  const _xT = clamp(xTitle, 0, 240);
+  const _yT = clamp(yTitle, 0, 160);
+  const _xL = clamp(xLeft, 0, 240);
+  const _yL = clamp(yLeft, 0, 160);
+  const _xR = clamp(xRight, 0, 240);
+  const _yR = clamp(yRight, 0, 160);
+  const _xTL = clamp(xTimeLeft, 0, 240);
+  const _yTL = clamp(yTimeLeft, 0, 160);
+  const _xTR = clamp(xTimeRight, 0, 240);
+  const _yTR = clamp(yTimeRight, 0, 160);
+  const _density = clamp(density, 0, 15);
+  const _speed = clamp(speed, 1, 5);
 
-  // 2) Сжатие/растяжение: слайдер -6…6 → тонкая настройка ширины (уже ↔ шире).
-  const sL = Math.max(-6, Math.min(6, Number(stretchLeft) || 0));
-  const sR = Math.max(-6, Math.min(6, Number(stretchRight) || 0));
-  const sxLeft = Math.max(1, Math.min(8, syLeft + sL));
-  const sxRight = Math.max(1, Math.min(8, syRight + sR));
-
-  // 3) Координаты: базовые точки + линейный сдвиг из ползунков.
-  const baseXLeft = 20;
-  const baseXRight = 155;
-  const baseY = 80;
-
-  // Превью 300×200 px ↔ реальная область ~240×160 точек → коэффициент 0.8
-  const kx = 0.8;
-  const ky = 0.8;
-
-  const dxLeft = Number(offsetXLeft) || 0;
-  const dyLeft = Number(offsetYLeft) || 0;
-  const dxRight = Number(offsetXRight) || 0;
-  const dyRight = Number(offsetYRight) || 0;
-
-  let xLeft = Math.round(baseXLeft + dxLeft * kx);
-  const yLeft = Math.round(baseY + dyLeft * ky);
-  let xRight = Math.round(baseXRight + dxRight * kx);
-  const yRight = Math.round(baseY + dyRight * ky);
-
-  // Запрет наложения: правая дата не ближе чем minGap точек к левой.
-  const minGap = 70;
-  if (xRight < xLeft + minGap) {
-    xRight = xLeft + minGap;
-  }
-  // Правая дата не уезжает левее середины этикетки (~120), иначе налезает.
-  if (xRight < 100) {
-    xRight = 100;
-  }
-
-  // Шрифт дат: "2" обычно легче "0"/"1" — меньше «расплывания» при быстром просмотре.
-  const dateFont = '2';
+  const title = escapeTsplString(titleText);
 
   const lines = [
     'SIZE 30 mm,20 mm',
     'GAP 2 mm,0',
+    `SPEED ${_speed}`,
     'DIRECTION 1',
-    `DENSITY ${darkness}`,
+    `DENSITY ${_density}`,
     'CODEPAGE 866',
     'CLS',
-    'SETBOLD 0',
-    'UNDERLINE OFF',
-    `TEXT ${xLeft},${yLeft},"${dateFont}",0,${sxLeft},${syLeft},"${madeDay}.${madeMonth}"`,
-    `TEXT ${xRight},${yRight},"${dateFont}",0,${sxRight},${syRight},"${expDay}.${expMonth}"`,
-    'PRINT 1',
   ];
+
+  if (titleText && titleText.trim()) {
+    lines.push(`TEXT ${_xT},${_yT},"${fT}",0,${_sxT},${_syT},"${title}"`);
+  }
+
+  lines.push(
+    `TEXT ${_xL},${_yL},"${fL}",0,${_sxL},${_syL},"${madeDay}.${madeMonth}"`,
+    `TEXT ${_xR},${_yR},"${fR}",0,${_sxR},${_syR},"${expDay}.${expMonth}"`,
+    `TEXT ${_xTL},${_yTL},"${fTL}",0,${_sxTL},${_syTL},"${madeHours}.${madeMinutes}"`,
+    `TEXT ${_xTR},${_yTR},"${fTR}",0,${_sxTR},${_syTR},"${expHours}.${expMinutes}"`,
+    'PRINT 1',
+  );
 
   return `${lines.join('\r\n')}\r\n`;
 }
@@ -162,5 +187,6 @@ function buildTsplTestDates(payload) {
 module.exports = {
   buildTsplLabel,
   buildTsplTestDates,
+  TSPL_FONTS,
 };
 
