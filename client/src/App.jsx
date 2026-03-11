@@ -5,6 +5,7 @@ const API_BASE = import.meta.env.VITE_API_URL || ''
 
 const LABEL_TEMPLATES_KEY = 'ddlabel_label_templates'
 const LABEL_LAST_TEMPLATE_KEY = 'ddlabel_last_template'
+const THEME_STORAGE_KEY = 'ddlabel_theme'
 
 const SpeechRecognitionAPI = typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition)
 
@@ -81,6 +82,8 @@ function App() {
   const [status, setStatus] = useState(null)
   const [loading, setLoading] = useState(false)
   const [phrase, setPhrase] = useState('')
+  const [phraseHeight, setPhraseHeight] = useState(36)
+  const phraseResizeRef = useRef(null)
   const [parsedResult, setParsedResult] = useState(null)
   const [isListening, setIsListening] = useState(false)
   const [isVoiceMode, setIsVoiceMode] = useState(false)
@@ -140,6 +143,24 @@ function App() {
     if (last && all[last] && all[last].tsplParams) return all[last].tsplParams
     return defaultTsplParams
   })
+
+  const [activeTab, setActiveTab] = useState('main')
+  const [theme, setTheme] = useState(() => {
+    try {
+      return localStorage.getItem(THEME_STORAGE_KEY) || 'dark'
+    } catch {
+      return 'dark'
+    }
+  })
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme)
+    try {
+      localStorage.setItem(THEME_STORAGE_KEY, theme)
+    } catch {
+      /* ignore */
+    }
+  }, [theme])
 
   useEffect(() => {
     voiceModeRef.current = isVoiceMode
@@ -747,20 +768,69 @@ function App() {
       <h1>DDLabel</h1>
       <p className="subtitle">Печать этикеток по голосу</p>
 
+      <div className="app-tabs-wrap">
+        <nav className="app-tabs">
+          <button
+            type="button"
+            className={`app-tab ${activeTab === 'main' ? 'app-tab-active' : ''}`}
+            onClick={() => setActiveTab('main')}
+          >
+            Главная
+          </button>
+          <button
+            type="button"
+            className={`app-tab ${activeTab === 'shelf' ? 'app-tab-active' : ''}`}
+            onClick={() => setActiveTab('shelf')}
+          >
+            Справочник
+          </button>
+          <button
+            type="button"
+            className={`app-tab ${activeTab === 'settings' ? 'app-tab-active' : ''}`}
+            onClick={() => setActiveTab('settings')}
+          >
+            Настройки
+          </button>
+        </nav>
+      </div>
+
+      {activeTab === 'main' && (
       <section className="card">
         <p>Фраза (продукт и дата/время изготовления):</p>
         <div className="phrase-row">
-          <textarea
-            className="phrase-input phrase-input-main"
-            placeholder="сыр Россия 10 03 11 10"
-            value={phrase}
-            onChange={(e) => {
-              const templates = splitTextTemplates(e.target.value)
-              setPhrase(templates.join('\n'))
-            }}
-            disabled={loading || isVoiceMode}
-            rows={4}
-          />
+          <div className="phrase-input-wrap">
+            <textarea
+              className="phrase-input phrase-input-main"
+              placeholder="сыр Россия 10 03 11 10"
+              value={phrase}
+              onChange={(e) => {
+                const templates = splitTextTemplates(e.target.value)
+                setPhrase(templates.join('\n'))
+              }}
+              disabled={loading || isVoiceMode}
+              style={{ height: phraseHeight }}
+            />
+            <div
+              className="phrase-resize-handle"
+              onMouseDown={(e) => {
+                e.preventDefault()
+                phraseResizeRef.current = { startY: e.clientY, startHeight: phraseHeight }
+                const onMove = (ev) => {
+                  if (!phraseResizeRef.current) return
+                  const dy = ev.clientY - phraseResizeRef.current.startY
+                  setPhraseHeight((h) => Math.min(400, Math.max(36, phraseResizeRef.current.startHeight + dy)))
+                }
+                const onUp = () => {
+                  phraseResizeRef.current = null
+                  document.removeEventListener('mousemove', onMove)
+                  document.removeEventListener('mouseup', onUp)
+                }
+                document.addEventListener('mousemove', onMove)
+                document.addEventListener('mouseup', onUp)
+              }}
+              title="Потяните для изменения высоты"
+            />
+          </div>
         </div>
         <div className="card-buttons phrase-buttons">
           <button
@@ -771,7 +841,7 @@ function App() {
             Голос
           </button>
           <button onClick={handleParseAndPrint} disabled={loading || isVoiceMode}>
-            {loading ? 'Отправка…' : 'На печать'}
+            {loading ? 'Отправка…' : 'на Печать'}
           </button>
           <button onClick={handleParseOnly} disabled={loading || isVoiceMode}>
             {loading ? '…' : 'Разобрать'}
@@ -791,7 +861,97 @@ function App() {
           </p>
         )}
       </section>
+      )}
 
+      {activeTab === 'shelf' && (
+      <section className="card">
+        <h2 className="card-title">Справочник сроков</h2>
+        <p className="card-desc">Добавляйте продукты и срок хранения (в часах или сутках). Справочник используется при разборе фразы и печати этикетки.</p>
+        <div className="shelf-add">
+          <input
+            type="text"
+            className="phrase-input shelf-input"
+            placeholder="Название продукта"
+            value={addName}
+            onChange={(e) => setAddName(e.target.value)}
+            disabled={shelfLoading}
+          />
+          <label className="shelf-label">
+            Суток
+            <input
+              type="number"
+              min="0"
+              step="1"
+              className="phrase-input shelf-input shelf-num"
+              placeholder="0"
+              value={addDays}
+              onChange={(e) => {
+                const v = e.target.value
+                setAddDays(v)
+                if (v) setAddHours('')
+              }}
+              disabled={shelfLoading}
+            />
+          </label>
+          <label className="shelf-label">
+            Часов
+            <input
+              type="number"
+              min="0"
+              step="1"
+              className="phrase-input shelf-input shelf-num"
+              placeholder="0"
+              value={addHours}
+              onChange={(e) => {
+                const v = e.target.value
+                const n = Number(v)
+                if (v !== '' && !Number.isNaN(n) && n > 24 && n <= 36) {
+                  setAddDays('1')
+                  setAddHours(String(n - 24))
+                } else {
+                  setAddDays('')
+                  setAddHours(v)
+                }
+              }}
+              disabled={shelfLoading}
+            />
+          </label>
+          <button onClick={handleShelfAdd} disabled={shelfLoading}>
+            {shelfLoading ? '…' : 'Добавить'}
+          </button>
+          <button type="button" onClick={() => setShelfListOpen(true)} className="shelf-list-btn">
+            Список продуктов
+          </button>
+        </div>
+        {shelfStatus && (
+          <p className={shelfStatus.type === 'ok' ? 'status ok' : 'status error'}>
+            {shelfStatus.message}
+          </p>
+        )}
+      </section>
+      )}
+
+      {activeTab === 'settings' && (
+      <>
+        <section className="card settings-theme-row">
+          <h2 className="card-title">Тема</h2>
+          <div className="theme-toggle">
+            <button
+              type="button"
+              className={`theme-toggle-btn ${theme === 'light' ? 'theme-toggle-active' : ''}`}
+              onClick={() => setTheme('light')}
+            >
+              Светлая
+            </button>
+            <button
+              type="button"
+              className={`theme-toggle-btn ${theme === 'dark' ? 'theme-toggle-active' : ''}`}
+              onClick={() => setTheme('dark')}
+            >
+              Тёмная
+            </button>
+          </div>
+        </section>
       <section className="card">
         <h2 className="card-title">Превью макета этикетки 30×20 мм</h2>
         <p className="card-desc">Это только визуальный макет (Open Sans), по нему будем подбирать расположение элементов для печати. Настройки можно сохранять как шаблон (1_1, 1_2 и т.д.).</p>
@@ -1171,72 +1331,8 @@ function App() {
           </div>
         </div>
       </section>
-
-      <section className="card">
-        <h2 className="card-title">Справочник сроков</h2>
-        <p className="card-desc">Добавляйте продукты и срок хранения (в часах или сутках). Справочник используется при разборе фразы и печати этикетки.</p>
-        <div className="shelf-add">
-          <input
-            type="text"
-            className="phrase-input shelf-input"
-            placeholder="Название продукта"
-            value={addName}
-            onChange={(e) => setAddName(e.target.value)}
-            disabled={shelfLoading}
-          />
-          <label className="shelf-label">
-            Суток
-            <input
-              type="number"
-              min="0"
-              step="1"
-              className="phrase-input shelf-input shelf-num"
-              placeholder="0"
-              value={addDays}
-              onChange={(e) => {
-                const v = e.target.value
-                setAddDays(v)
-                if (v) setAddHours('')
-              }}
-              disabled={shelfLoading}
-            />
-          </label>
-          <label className="shelf-label">
-            Часов
-            <input
-              type="number"
-              min="0"
-              step="1"
-              className="phrase-input shelf-input shelf-num"
-              placeholder="0"
-              value={addHours}
-              onChange={(e) => {
-                const v = e.target.value
-                const n = Number(v)
-                if (v !== '' && !Number.isNaN(n) && n > 24 && n <= 36) {
-                  setAddDays('1')
-                  setAddHours(String(n - 24))
-                } else {
-                  setAddDays('')
-                  setAddHours(v)
-                }
-              }}
-              disabled={shelfLoading}
-            />
-          </label>
-          <button onClick={handleShelfAdd} disabled={shelfLoading}>
-            {shelfLoading ? '…' : 'Добавить'}
-          </button>
-          <button type="button" onClick={() => setShelfListOpen(true)} className="shelf-list-btn">
-            Список продуктов
-          </button>
-        </div>
-        {shelfStatus && (
-          <p className={shelfStatus.type === 'ok' ? 'status ok' : 'status error'}>
-            {shelfStatus.message}
-          </p>
-        )}
-      </section>
+      </>
+      )}
 
       {shelfListOpen && (
         <div className="shelf-modal-overlay" onClick={() => setShelfListOpen(false)}>
