@@ -12,11 +12,17 @@ function escapeTsplString(s) {
 /**
  * Формирует TSPL-команды для рабочей этикетки 30×20 мм.
  * Координаты в точках (203 dpi): ширина ~240, высота ~160.
- * @param {{ productName: string, madeAt: Date, expiresAt: Date, darkness?: number }} payload
+ * Использует те же калиброванные параметры, что и тестовая печать:
+ *   - название: шрифт 3, sy=2, x=20, y=25
+ *   - даты: шрифт 3, sy=2, x=18/145, y=80
+ *   - время: шрифт 1, sx=2, sy=2, x=18/145, y=135
+ * DENSITY=1, SPEED=4 — оптимальные значения для тонких, но читаемых линий.
+ *
+ * @param {{ productName: string, madeAt: Date, expiresAt: Date }} payload
  * @returns {string} Строка с командами TSPL, разделёнными переводами строк.
  */
 function buildTsplLabel(payload) {
-  const { productName, madeAt, expiresAt, darkness = 10 } = payload;
+  const { productName, madeAt, expiresAt } = payload;
 
   const pad2 = (n) => String(n).padStart(2, '0');
   const madeDay = pad2(madeAt.getDate());
@@ -33,30 +39,19 @@ function buildTsplLabel(payload) {
   const lines = [
     'SIZE 30 mm,20 mm',
     'GAP 2 mm,0',
+    'SPEED 4',
     'DIRECTION 1',
-    `DENSITY ${darkness}`,
+    'DENSITY 1',
     'CODEPAGE 866',
     'CLS',
-    // --- Верх: название продукта, по центру, жирный + подчёркнутый ---
-    'SETBOLD 1',
-    'UNDERLINE ON',
-    // Чуть ниже и поменьше, чтобы точно влезло
-    `TEXT 20,15,"0",0,1,1,"${name}"`,
-    'SETBOLD 0',
-    'UNDERLINE OFF',
-    // --- Середина: даты слева и справа (шрифт "2" — легче, не расплывается) ---
-    'SETBOLD 0',
-    `TEXT 20,70,"2",0,2,2,"${madeDay}.${madeMonth}"`,
-    'TEXT 120,75,"0",0,1,1,"oo"',
-    `TEXT 165,70,"2",0,2,2,"${expDay}.${expMonth}"`,
-    // --- Низ: время слева и справа, подчёркнутые ---
-    'SETBOLD 1',
-    'UNDERLINE ON',
-    // Делаем время крупнее и ближе к нижней кромке
-    `TEXT 25,120,"0",0,2,2,"${madeHours}.${madeMinutes}"`,
-    `TEXT 165,120,"0",0,2,2,"${expHours}.${expMinutes}"`,
-    'SETBOLD 0',
-    'UNDERLINE OFF',
+    // Название продукта (верх)
+    `TEXT 20,25,"3",0,1,2,"${name}"`,
+    // Даты
+    `TEXT 18,80,"3",0,1,2,"${madeDay}.${madeMonth}"`,
+    `TEXT 145,80,"3",0,1,2,"${expDay}.${expMonth}"`,
+    // Время
+    `TEXT 18,135,"1",0,2,2,"${madeHours}.${madeMinutes}"`,
+    `TEXT 145,135,"1",0,2,2,"${expHours}.${expMinutes}"`,
     'PRINT 1',
   ];
 
