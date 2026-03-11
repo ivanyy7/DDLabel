@@ -219,8 +219,29 @@
   justify-content: center;
 }
 
+.phrase-buttons {
+  flex-wrap: nowrap;
+  justify-content: center;
+}
+
+.phrase-buttons button {
+  min-width: 120px;
+}
+
 .card-buttons button {
   margin-top: 0;
+}
+
+.voice-btn {
+  min-width: 120px;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.voice-btn.voice-btn-active {
+  background-color: #007b3a;
 }
 
 .phrase-input {
@@ -253,9 +274,14 @@
 }
 
 .phrase-input-main {
-  flex: 0 1 360px;
-  height: 40px;
+  flex: 0 0 480px;
+  max-width: 100%;
+  min-width: 0;
   margin-top: 0;
+  height: 36px;
+  min-height: 36px;
+  max-height: 400px;
+  resize: vertical;
 }
 
 .phrase-clear-btn {

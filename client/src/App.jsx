@@ -83,7 +83,11 @@ function App() {
   const [phrase, setPhrase] = useState('')
   const [parsedResult, setParsedResult] = useState(null)
   const [isListening, setIsListening] = useState(false)
+  const [isVoiceMode, setIsVoiceMode] = useState(false)
+  const [pendingVoiceTemplates, setPendingVoiceTemplates] = useState([])
   const recognitionRef = useRef(null)
+  const voiceModeRef = useRef(false)
+  const autoPrintTimerRef = useRef(null)
 
   // Справочник сроков
   const [shelfItems, setShelfItems] = useState([])
@@ -136,6 +140,27 @@ function App() {
     if (last && all[last] && all[last].tsplParams) return all[last].tsplParams
     return defaultTsplParams
   })
+
+  useEffect(() => {
+    voiceModeRef.current = isVoiceMode
+  }, [isVoiceMode])
+
+  useEffect(() => {
+    return () => {
+      if (autoPrintTimerRef.current) {
+        clearTimeout(autoPrintTimerRef.current)
+        autoPrintTimerRef.current = null
+      }
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.stop()
+        } catch {
+          // ignore
+        }
+        recognitionRef.current = null
+      }
+    }
+  }, [])
 
   const updateTsplSide = (side, field, value) => {
     setTsplParams((prev) => ({
@@ -230,6 +255,22 @@ function App() {
       .replace(/\s+/g, ' ')
   }
 
+  const splitTextTemplates = (text) => {
+    const raw = (text || '').replace(/\r\n/g, '\n')
+    if (!raw.trim()) return []
+    return raw
+      .split('\n')
+      .map((s) => s.trim())
+      .filter(Boolean)
+  }
+
+  const clearAutoPrintTimer = () => {
+    if (autoPrintTimerRef.current) {
+      clearTimeout(autoPrintTimerRef.current)
+      autoPrintTimerRef.current = null
+    }
+  }
+
   // Отправка фразы на разбор и печать (общая логика для кнопки и голоса)
   const sendPhraseToPrint = async (text) => {
     const trimmed = normalizePhrase(text)
@@ -256,33 +297,89 @@ function App() {
     }
   }
 
-  const handleVoiceClick = () => {
+  const triggerVoiceBatchPrint = (templates) => {
+    const list = templates && templates.length ? templates : []
+    if (!list.length) return
+    clearAutoPrintTimer()
+    setPendingVoiceTemplates([])
+    ;(async () => {
+      for (const t of list) {
+        await sendPhraseToPrint(t)
+      }
+    })()
+  }
+
+  const scheduleAutoPrint = (templates) => {
+    if (!templates.length) return
+    clearAutoPrintTimer()
+    autoPrintTimerRef.current = setTimeout(() => {
+      triggerVoiceBatchPrint(templates)
+    }, 7000)
+  }
+
+  const addVoiceTemplatesFromTranscript = (transcript) => {
+    const raw = (transcript || '').trim()
+    if (!raw) return
+    const normalizedFull = normalizePhrase(raw)
+    if (!normalizedFull) return
+
+    const hasOk = /\bok\b/i.test(normalizedFull)
+    const withoutOk = normalizedFull.replace(/\bok\b/gi, ' ').trim()
+    // Если пользователь сказал только соединительное «и» —
+    // считаем, что он продолжает ввод, просто продлеваем таймер.
+    if (/^и$/i.test(withoutOk)) {
+      if (pendingVoiceTemplates.length) {
+        scheduleAutoPrint(pendingVoiceTemplates)
+      }
+      return
+    }
+
+    const segments = withoutOk
+      .split(/\s+и\s+/i)
+      .map((s) => s.trim())
+      .filter(Boolean)
+
+    if (!segments.length) {
+      if (hasOk && pendingVoiceTemplates.length) {
+        triggerVoiceBatchPrint(pendingVoiceTemplates)
+      }
+      return
+    }
+
+    setPendingVoiceTemplates((prev) => {
+      const updated = [...prev, ...segments]
+      scheduleAutoPrint(updated)
+      return updated
+    })
+
+    setPhrase((prev) => {
+      const existing = splitTextTemplates(prev).join('\n')
+      const base = existing ? `${existing}\n` : ''
+      return `${base}${segments.join('\n')}`
+    })
+
+    if (hasOk) {
+      triggerVoiceBatchPrint([...pendingVoiceTemplates, ...segments])
+    }
+  }
+
+  const startVoiceSession = () => {
     if (!SpeechRecognitionAPI) {
       setStatus({ type: 'error', message: 'Голосовой ввод не поддерживается в этом браузере (нужен Chrome/Edge).' })
       return
     }
-    if (isListening || loading) return
+    if (recognitionRef.current || loading || !voiceModeRef.current) return
 
     const Recognition = SpeechRecognitionAPI
     const recognition = new Recognition()
     recognition.lang = 'ru-RU'
-    // Делаем сессию распознавания более «длинной»,
-    // но не чрезмерной: даём ~10–11 секунд на фразу с паузами.
     recognition.continuous = true
     recognition.interimResults = false
-    const sessionStart = Date.now()
-    const maxDurationMs = 10500
-    let hasFinalResult = false
     recognitionRef.current = recognition
 
     recognition.onresult = (event) => {
       const transcript = event.results[0][0].transcript
-      const normalized = normalizePhrase(transcript)
-      hasFinalResult = true
-      setPhrase(normalized)
-      sendPhraseToPrint(normalized)
-      // После первого финального результата останавливаем распознавание,
-      // чтобы не накапливать лишние фразы.
+      addVoiceTemplatesFromTranscript(transcript)
       try {
         recognition.stop()
       } catch {
@@ -294,21 +391,16 @@ function App() {
       const msg = event.error === 'not-allowed' ? 'Доступ к микрофону запрещён.' : `Ошибка распознавания: ${event.error}.`
       setStatus({ type: 'error', message: msg })
       setIsListening(false)
+      recognitionRef.current = null
     }
 
     recognition.onend = () => {
-      // Если финального результата ещё не было и общий лимит по времени не превышен,
-      // перезапускаем распознавание — так суммарное «окно» приёма фразы становится длиннее.
-      if (!hasFinalResult && Date.now() - sessionStart < maxDurationMs) {
-        try {
-          recognition.start()
-          return
-        } catch {
-          // ignore и завершаем сессию ниже
-        }
-      }
-      setIsListening(false)
       recognitionRef.current = null
+      if (voiceModeRef.current) {
+        startVoiceSession()
+      } else {
+        setIsListening(false)
+      }
     }
 
     setStatus(null)
@@ -316,19 +408,56 @@ function App() {
     recognition.start()
   }
 
+  const handleVoiceToggle = () => {
+    if (!isVoiceMode) {
+      if (!SpeechRecognitionAPI) {
+        setStatus({ type: 'error', message: 'Голосовой ввод не поддерживается в этом браузере (нужен Chrome/Edge).' })
+        return
+      }
+      setIsVoiceMode(true)
+      voiceModeRef.current = true
+      startVoiceSession()
+    } else {
+      setIsVoiceMode(false)
+      voiceModeRef.current = false
+      clearAutoPrintTimer()
+      setPendingVoiceTemplates([])
+      setIsListening(false)
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.stop()
+        } catch {
+          // ignore
+        }
+        recognitionRef.current = null
+      }
+    }
+  }
+
   const handleParseAndPrint = () => {
-    const text = normalizePhrase(phrase)
-    if (!text) {
+    const templates = splitTextTemplates(phrase)
+    if (!templates.length) {
       setStatus({ type: 'error', message: 'Введите фразу.' })
       return
     }
-    sendPhraseToPrint(text)
+    if (templates.length === 1) {
+      sendPhraseToPrint(templates[0])
+      return
+    }
+    setStatus(null)
+    ;(async () => {
+      for (const t of templates) {
+        await sendPhraseToPrint(t)
+      }
+    })()
   }
 
   const handleClearPhrase = () => {
     setPhrase('')
     setParsedResult(null)
     setStatus(null)
+    setPendingVoiceTemplates([])
+    clearAutoPrintTimer()
   }
 
   const handleShelfAdd = async () => {
@@ -621,32 +750,39 @@ function App() {
       <section className="card">
         <p>Фраза (продукт и дата/время изготовления):</p>
         <div className="phrase-row">
-          <input
-            type="text"
+          <textarea
             className="phrase-input phrase-input-main"
-            placeholder="Бекон слайс срок с 7 ноль третьего с 10 01"
+            placeholder="сыр Россия 10 03 11 10"
             value={phrase}
-            onChange={(e) => setPhrase(e.target.value)}
-            disabled={loading || isListening}
+            onChange={(e) => {
+              const templates = splitTextTemplates(e.target.value)
+              setPhrase(templates.join('\n'))
+            }}
+            disabled={loading || isVoiceMode}
+            rows={4}
           />
+        </div>
+        <div className="card-buttons phrase-buttons">
+          <button
+            onClick={handleVoiceToggle}
+            disabled={loading}
+            className={isVoiceMode ? 'voice-btn voice-btn-active' : 'voice-btn'}
+          >
+            Голос
+          </button>
+          <button onClick={handleParseAndPrint} disabled={loading || isVoiceMode}>
+            {loading ? 'Отправка…' : 'На печать'}
+          </button>
+          <button onClick={handleParseOnly} disabled={loading || isVoiceMode}>
+            {loading ? '…' : 'Разобрать'}
+          </button>
           <button
             type="button"
             className="phrase-clear-btn"
             onClick={handleClearPhrase}
             disabled={loading || isListening || !phrase}
           >
-            Сбросить
-          </button>
-        </div>
-        <div className="card-buttons">
-          <button onClick={handleParseOnly} disabled={loading || isListening}>
-            {loading ? '…' : 'Только разобрать'}
-          </button>
-          <button onClick={handleParseAndPrint} disabled={loading || isListening}>
-            {loading ? 'Отправка…' : 'Разобрать и напечатать'}
-          </button>
-          <button onClick={handleVoiceClick} disabled={loading || isListening} className="voice-btn">
-            {isListening ? 'Слушаю…' : 'Голос'}
+            Сброс
           </button>
         </div>
         {parsedResult && (
