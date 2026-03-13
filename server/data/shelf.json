@@ -28,5 +28,15 @@
     "value": 7,
     "unit": "days",
     "labelText": "с/с Сливочный"
+  },
+  {
+    "productName": "Грязные овощи",
+    "value": 7,
+    "unit": "days"
+  },
+  {
+    "productName": "Грязные фрукты",
+    "value": 7,
+    "unit": "days"
   }
 ]

@@ -10,7 +10,7 @@ const escpos = require('escpos');
 const usb = require('escpos-usb');
 const iconv = require('iconv-lite');
 const { printLabel } = require('./labelBuilder.js');
-const { buildTsplLabel, buildTsplTestDates, TSPL_FONTS } = require('./tsplDriver.js');
+const { buildTsplLabel, buildTsplLabelSingle, buildTsplTestDates, TSPL_FONTS } = require('./tsplDriver.js');
 const { resolveExpiry } = require('./shelfLife.js');
 const shelfStorage = require('./shelfStorage.js');
 const { parsePhraseWithMode } = require('./parsing/core/phraseEngine');
@@ -142,7 +142,23 @@ function parseAndResolve(phrase) {
 
 app.post('/api/parse', (req, res) => {
   const phrase = (req.body && req.body.phrase) != null ? String(req.body.phrase) : '';
-  const result = parseAndResolve(phrase);
+  const singleMode = req.body && req.body.singleMode === true;
+  const parsed = parsePhraseWithMode(phrase);
+  if (parsed.error) {
+    const errMsg = phrase.trim() ? `${parsed.error} Вы сказали: «${phrase.trim()}».` : parsed.error;
+    res.status(400).json({ ok: false, error: errMsg });
+    return;
+  }
+  if (singleMode) {
+    res.json({
+      ok: true,
+      productName: parsed.productName,
+      madeAt: parsed.madeAt.toISOString(),
+      expiresAt: parsed.madeAt.toISOString()
+    });
+    return;
+  }
+  const result = resolveExpiry(parsed);
   if (result.error) {
     const errMsg = phrase.trim() ? `${result.error} Вы сказали: «${phrase.trim()}».` : result.error;
     res.status(400).json({ ok: false, error: errMsg });
@@ -158,19 +174,31 @@ app.post('/api/parse', (req, res) => {
 
 app.post('/api/print', (req, res) => {
   const body = req.body || {};
+  const singleMode = body.singleMode === true;
   let productName, madeAt, expiresAt;
 
   if (body.phrase != null && String(body.phrase).trim()) {
     const phrase = String(body.phrase).trim();
-    const result = parseAndResolve(phrase);
-    if (result.error) {
-      const errMsg = `${result.error} Вы сказали: «${phrase}».`;
+    const parsed = parsePhraseWithMode(phrase);
+    if (parsed.error) {
+      const errMsg = `${parsed.error} Вы сказали: «${phrase}».`;
       res.status(400).json({ ok: false, error: errMsg });
       return;
     }
-    productName = result.productName;
-    madeAt = result.madeAt;
-    expiresAt = result.expiresAt;
+    productName = parsed.productName;
+    madeAt = parsed.madeAt;
+    if (singleMode) {
+      expiresAt = madeAt; // не используется в одиночном режиме
+    } else {
+      const resolved = resolveExpiry(parsed);
+      if (resolved.error) {
+        const errMsg = `${resolved.error} Вы сказали: «${phrase}».`;
+        res.status(400).json({ ok: false, error: errMsg });
+        return;
+      }
+      productName = resolved.productName;
+      expiresAt = resolved.expiresAt;
+    }
   } else {
     productName = body.productName != null ? String(body.productName) : defaultLabel.productName;
     madeAt = parseDate(body.madeAt != null ? body.madeAt : defaultLabel.madeAt);
@@ -178,7 +206,8 @@ app.post('/api/print', (req, res) => {
   }
 
   const productLabelText = shelfStorage.getLabelText(productName);
-  doPrint({ productName, madeAt, expiresAt, productLabelText }, res);
+  const tsplBuilder = singleMode ? buildTsplLabelSingle : buildTsplLabel;
+  doPrint({ productName, madeAt, expiresAt, productLabelText }, res, tsplBuilder);
 });
 
 app.get('/api/tspl-fonts', (_req, res) => {

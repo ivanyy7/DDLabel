@@ -59,6 +59,46 @@ function buildTsplLabel(payload) {
 }
 
 /**
+ * Одиночный режим: название + дата изготовления + время изготовления.
+ * Строка 1: название. Строка 2: дата слева, время справа (в одну строку).
+ * Без расчёта срока годности, без второй пары дата/время.
+ *
+ * @param {{ productName: string, madeAt: Date }} payload
+ * @returns {string} Строка с командами TSPL.
+ */
+function buildTsplLabelSingle(payload) {
+  const { productName, madeAt } = payload;
+
+  const pad2 = (n) => String(n).padStart(2, '0');
+  const madeDay = pad2(madeAt.getDate());
+  const madeMonth = pad2(madeAt.getMonth() + 1);
+  const madeHours = pad2(madeAt.getHours());
+  const madeMinutes = pad2(madeAt.getMinutes());
+
+  const name = escapeTsplString(productName);
+  const dateStr = `${madeDay}.${madeMonth}`;
+  const timeStr = `${madeHours}.${madeMinutes}`;
+
+  const lines = [
+    'SIZE 30 mm,20 mm',
+    'GAP 2 mm,0',
+    'SPEED 4',
+    'DIRECTION 1',
+    'DENSITY 1',
+    'CODEPAGE 866',
+    'CLS',
+    // Название продукта (верх)
+    `TEXT 20,25,"3",0,1,2,"${name}"`,
+    // Дата и время в одну строку: дата слева (x=18), время справа (x=120)
+    `TEXT 18,80,"3",0,1,2,"${dateStr}"`,
+    `TEXT 120,80,"1",0,2,2,"${timeStr}"`,
+    'PRINT 1',
+  ];
+
+  return `${lines.join('\r\n')}\r\n`;
+}
+
+/**
  * Встроенные шрифты TSPL (XP-365B, 203 dpi).
  * Ключ = номер шрифта для команды TEXT.
  */
@@ -181,6 +221,7 @@ function buildTsplTestDates(payload) {
 
 module.exports = {
   buildTsplLabel,
+  buildTsplLabelSingle,
   buildTsplTestDates,
   TSPL_FONTS,
 };

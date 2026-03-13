@@ -345,7 +345,14 @@ html[data-theme="light"] .phrase-clear-btn {
 }
 
 .voice-btn.voice-btn-active {
-  background-color: #007b3a;
+  background-color: #007b3a !important;
+  border-color: #00662e;
+}
+
+html[data-theme="light"] .voice-btn.voice-btn-active,
+html[data-theme="dark"] .voice-btn.voice-btn-active {
+  background-color: #007b3a !important;
+  color: #fff !important;
 }
 
 .phrase-input {
@@ -371,14 +378,73 @@ html[data-theme="light"] .phrase-clear-btn {
 
 .phrase-row {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: center;
   gap: 0.5rem;
   margin-top: 0.5rem;
 }
 
+.parse-btn-small {
+  flex-shrink: 0;
+  width: 20px;
+  height: 41px;
+  padding: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  border: 1px solid #999;
+  background: #e0e0e0;
+  color: #1a1a1a;
+  cursor: pointer;
+}
+
+.parse-btn-small:hover:not(:disabled) {
+  background: #d0d0d0;
+}
+
+.parse-btn-small:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.mode-toggle-btn {
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  border: 1px solid #999;
+  background: #e0e0e0;
+  color: #1a1a1a;
+  cursor: pointer;
+  font-size: 0.95rem;
+}
+
+.mode-toggle-btn:hover:not(:disabled) {
+  background: #d0d0d0;
+}
+
+.mode-toggle-active {
+  background-color: #007b3a !important;
+  color: #fff !important;
+  border-color: #00662e;
+}
+
+html[data-theme="light"] .card .mode-toggle-btn.mode-toggle-active,
+html[data-theme="dark"] .card .mode-toggle-btn.mode-toggle-active {
+  background-color: #007b3a !important;
+  color: #fff !important;
+  border-color: #00662e;
+}
+
+.mode-toggle-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
 .phrase-input-wrap {
-  flex: 0 0 480px;
+  flex: 0 0 450px;
   max-width: 100%;
   min-width: 0;
   display: flex;
@@ -433,8 +499,14 @@ html[data-theme="light"] .phrase-clear-btn {
   cursor: not-allowed;
 }
 
+.status-wrap {
+  min-height: 1.6rem;
+  margin-top: 0.5rem;
+}
+
 .status {
   font-size: 0.95rem;
+  margin: 0;
 }
 
 .status.ok {

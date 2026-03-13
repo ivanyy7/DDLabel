@@ -55,7 +55,6 @@ const defaultLabelControls = {
   title: { fontSize: 18, offsetX: 0, offsetY: 0, weight: 0, stretch: 0 },
   dateLeft: { fontSize: 32, offsetX: 0, offsetY: 0, weight: 0, stretch: 0 },
   dateRight: { fontSize: 32, offsetX: 0, offsetY: 0, weight: 0, stretch: 0 },
-  infinity: { fontSize: 24, offsetX: 0, offsetY: 0, weight: 0, stretch: 0 },
   timeLeft: { fontSize: 16, offsetX: 0, offsetY: 0, weight: 0, stretch: 0 },
   timeRight: { fontSize: 16, offsetX: 0, offsetY: 0, weight: 0, stretch: 0 },
 }
@@ -64,7 +63,6 @@ const defaultLabelVisibility = {
   title: true,
   dateLeft: true,
   dateRight: true,
-  infinity: true,
   timeLeft: true,
   timeRight: true,
 }
@@ -90,7 +88,10 @@ function App() {
   const [pendingVoiceTemplates, setPendingVoiceTemplates] = useState([])
   const recognitionRef = useRef(null)
   const voiceModeRef = useRef(false)
+  const voiceErrorRef = useRef(false)
   const autoPrintTimerRef = useRef(null)
+  const okPrintTimerRef = useRef(null)
+  const pendingVoiceTemplatesRef = useRef([])
 
   // Справочник сроков
   const [shelfItems, setShelfItems] = useState([])
@@ -144,6 +145,7 @@ function App() {
     return defaultTsplParams
   })
 
+  const [labelMode, setLabelMode] = useState('double') // 'double' | 'single'
   const [activeTab, setActiveTab] = useState('main')
   const [theme, setTheme] = useState(() => {
     try {
@@ -167,10 +169,18 @@ function App() {
   }, [isVoiceMode])
 
   useEffect(() => {
+    pendingVoiceTemplatesRef.current = pendingVoiceTemplates
+  }, [pendingVoiceTemplates])
+
+  useEffect(() => {
     return () => {
       if (autoPrintTimerRef.current) {
         clearTimeout(autoPrintTimerRef.current)
         autoPrintTimerRef.current = null
+      }
+      if (okPrintTimerRef.current) {
+        clearTimeout(okPrintTimerRef.current)
+        okPrintTimerRef.current = null
       }
       if (recognitionRef.current) {
         try {
@@ -222,7 +232,8 @@ function App() {
       return
     }
     const all = loadLabelTemplatesFromStorage()
-    all[name] = { labelControls, labelVisibility, selectedElement, tsplParams }
+    const visToSave = Object.fromEntries(Object.entries(labelVisibility).filter(([k]) => k !== 'infinity'))
+    all[name] = { labelControls, labelVisibility: visToSave, selectedElement, tsplParams }
     try {
       localStorage.setItem(LABEL_TEMPLATES_KEY, JSON.stringify(all))
       localStorage.setItem(LABEL_LAST_TEMPLATE_KEY, name)
@@ -247,7 +258,9 @@ function App() {
       return
     }
     setLabelControls(t.labelControls || defaultLabelControls)
-    setLabelVisibility(t.labelVisibility || defaultLabelVisibility)
+    const loadedVis = t.labelVisibility || {}
+    const { infinity: _inf, ...visRest } = loadedVis
+    setLabelVisibility({ ...defaultLabelVisibility, ...visRest })
     if (t.selectedElement) setSelectedElement(t.selectedElement)
     setTsplParams(t.tsplParams || defaultTsplParams)
     localStorage.setItem(LABEL_LAST_TEMPLATE_KEY, name)
@@ -303,7 +316,7 @@ function App() {
       const res = await fetch(`${API_BASE}/api/print`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phrase: trimmed }),
+        body: JSON.stringify({ phrase: trimmed, singleMode: labelMode === 'single' }),
       })
       const data = await res.json().catch(() => ({}))
       if (res.ok) {
@@ -344,10 +357,25 @@ function App() {
     const normalizedFull = normalizePhrase(raw)
     if (!normalizedFull) return
 
-    const hasOk = /\bok\b/i.test(normalizedFull)
-    const withoutOk = normalizedFull.replace(/\bok\b/gi, ' ').trim()
-    // Если пользователь сказал только соединительное «и» —
-    // считаем, что он продолжает ввод, просто продлеваем таймер.
+    // «ок» / «ok» — команда печати, не пишем в поле. Удаляем в любом регистре и раскладке.
+    const hasOk = /(?:^|\s)(ок|ok|oк)(?:\s|$)/i.test(normalizedFull)
+    const withoutOk = normalizedFull.replace(/(?:^|\s)(ок|ok|oк)(?:\s|$)/gi, ' ').replace(/\s+/g, ' ').trim()
+    // Только «ок» — печать с небольшой задержкой, чтобы успеть принять «грязные фрукты» и т.п., если они приходят отдельным результатом
+    if (!withoutOk) {
+      if (hasOk) {
+        if (okPrintTimerRef.current) clearTimeout(okPrintTimerRef.current)
+        okPrintTimerRef.current = setTimeout(() => {
+          okPrintTimerRef.current = null
+          const toPrint = pendingVoiceTemplatesRef.current
+          if (toPrint.length) {
+            triggerVoiceBatchPrint(toPrint)
+            setPendingVoiceTemplates([])
+          }
+        }, 450)
+      }
+      return
+    }
+    // Только соединительное «и» — продлеваем таймер
     if (/^и$/i.test(withoutOk)) {
       if (pendingVoiceTemplates.length) {
         scheduleAutoPrint(pendingVoiceTemplates)
@@ -357,31 +385,31 @@ function App() {
 
     const segments = withoutOk
       .split(/\s+и\s+/i)
-      .map((s) => s.trim())
+      .map((s) => normalizePhrase(s.trim()))
       .filter(Boolean)
 
-    if (!segments.length) {
-      if (hasOk && pendingVoiceTemplates.length) {
-        triggerVoiceBatchPrint(pendingVoiceTemplates)
-      }
+    if (!segments.length) return
+
+    const updated = [...pendingVoiceTemplates, ...segments]
+
+    if (hasOk) {
+      triggerVoiceBatchPrint(updated)
+      setPendingVoiceTemplates([])
+      setPhrase((prev) => {
+        const existing = splitTextTemplates(prev).join('\n')
+        const base = existing ? `${existing}\n` : ''
+        return `${base}${segments.join('\n')}`
+      })
       return
     }
 
-    setPendingVoiceTemplates((prev) => {
-      const updated = [...prev, ...segments]
-      scheduleAutoPrint(updated)
-      return updated
-    })
-
+    setPendingVoiceTemplates(updated)
+    scheduleAutoPrint(updated)
     setPhrase((prev) => {
       const existing = splitTextTemplates(prev).join('\n')
       const base = existing ? `${existing}\n` : ''
       return `${base}${segments.join('\n')}`
     })
-
-    if (hasOk) {
-      triggerVoiceBatchPrint([...pendingVoiceTemplates, ...segments])
-    }
   }
 
   const startVoiceSession = () => {
@@ -389,7 +417,7 @@ function App() {
       setStatus({ type: 'error', message: 'Голосовой ввод не поддерживается в этом браузере (нужен Chrome/Edge).' })
       return
     }
-    if (recognitionRef.current || loading || !voiceModeRef.current) return
+    if (recognitionRef.current || loading || !voiceModeRef.current || voiceErrorRef.current) return
 
     const Recognition = SpeechRecognitionAPI
     const recognition = new Recognition()
@@ -409,16 +437,22 @@ function App() {
     }
 
     recognition.onerror = (event) => {
-      const msg = event.error === 'not-allowed' ? 'Доступ к микрофону запрещён.' : `Ошибка распознавания: ${event.error}.`
-      setStatus({ type: 'error', message: msg })
+      if (event.error === 'not-allowed') {
+        setStatus({ type: 'error', message: 'Доступ к микрофону запрещён.' })
+        voiceErrorRef.current = true
+      }
       setIsListening(false)
       recognitionRef.current = null
     }
 
     recognition.onend = () => {
       recognitionRef.current = null
-      if (voiceModeRef.current) {
-        startVoiceSession()
+      if (voiceModeRef.current && !voiceErrorRef.current) {
+        setTimeout(() => {
+          if (voiceModeRef.current && !recognitionRef.current && !voiceErrorRef.current) {
+            startVoiceSession()
+          }
+        }, 150)
       } else {
         setIsListening(false)
       }
@@ -435,12 +469,14 @@ function App() {
         setStatus({ type: 'error', message: 'Голосовой ввод не поддерживается в этом браузере (нужен Chrome/Edge).' })
         return
       }
+      voiceErrorRef.current = false
       setIsVoiceMode(true)
       voiceModeRef.current = true
       startVoiceSession()
     } else {
       setIsVoiceMode(false)
       voiceModeRef.current = false
+      voiceErrorRef.current = false
       clearAutoPrintTimer()
       setPendingVoiceTemplates([])
       setIsListening(false)
@@ -496,7 +532,6 @@ function App() {
       return
     }
     if (hasDays && hasHours) {
-      // 1 сутки + X часов → сохраняем как часы
       const payload = { productName: name, value: d * 24 + h, unit: 'hours' }
       return await submitShelfAdd(name, payload)
     }
@@ -674,7 +709,7 @@ function App() {
       const res = await fetch(`${API_BASE}/api/parse`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phrase: text }),
+        body: JSON.stringify({ phrase: text, singleMode: labelMode === 'single' }),
       })
       const data = await res.json().catch(() => ({}))
       if (res.ok) {
@@ -709,34 +744,22 @@ function App() {
   const expHours = pad2(previewExpiresAt.getHours())
   const expMinutes = pad2(previewExpiresAt.getMinutes())
 
-  const onlyInfinityVisible =
-    labelVisibility.infinity &&
-    !labelVisibility.title &&
-    !labelVisibility.dateLeft &&
-    !labelVisibility.dateRight &&
-    !labelVisibility.timeLeft &&
-    !labelVisibility.timeRight
-
   const applyControl = (key) => {
-    const { fontSize, offsetX, offsetY, weight = 0, stretch = 0 } = labelControls[key]
+    const { fontSize, offsetX, offsetY, weight = 0, stretch = 0 } = labelControls[key] || {}
     // Жирность: влево — тоньше (мин. ~150, на 50% тоньше прежнего минимума), вправо — жирнее
     const fw = Math.max(100, Math.min(900, 400 + weight * 125))
     const ls = `${stretch}px`
-    let extraY = 0
-    if (key === 'infinity' && onlyInfinityVisible) {
-      extraY = -fontSize * 0.25
-    }
     return {
       fontFamily: "'Teko', sans-serif",
       fontSize: `${fontSize}px`,
-      transform: `translate(${offsetX}px, ${offsetY + extraY}px)`,
+      transform: `translate(${offsetX}px, ${offsetY}px)`,
       fontWeight: fw,
       letterSpacing: ls,
     }
   }
 
   const previewStyle = {
-    justifyContent: onlyInfinityVisible ? 'center' : 'space-between',
+    justifyContent: 'space-between',
   }
 
   const datesRowStyle = {
@@ -831,6 +854,15 @@ function App() {
               title="Потяните для изменения высоты"
             />
           </div>
+          <button
+            type="button"
+            className="parse-btn-small"
+            onClick={handleParseOnly}
+            disabled={loading || isVoiceMode}
+            title="Разобрать"
+          >
+            Р
+          </button>
         </div>
         <div className="card-buttons phrase-buttons">
           <button
@@ -840,24 +872,33 @@ function App() {
           >
             Голос
           </button>
-          <button onClick={handleParseAndPrint} disabled={loading || isVoiceMode}>
+          <button onClick={handleParseAndPrint} disabled={loading}>
             {loading ? 'Отправка…' : 'на Печать'}
           </button>
-          <button onClick={handleParseOnly} disabled={loading || isVoiceMode}>
-            {loading ? '…' : 'Разобрать'}
+          <button
+            type="button"
+            className={`mode-toggle-btn ${labelMode === 'single' ? 'mode-toggle-active' : ''}`}
+            onClick={() => setLabelMode((m) => (m === 'double' ? 'single' : 'double'))}
+            disabled={loading}
+            title={labelMode === 'double' ? 'Переключить на одиночный режим' : 'Переключить на двойной режим'}
+          >
+            {labelMode === 'double' ? 'Двойной' : 'Одиночн'}
           </button>
           <button
             type="button"
             className="phrase-clear-btn"
             onClick={handleClearPhrase}
-            disabled={loading || isListening || !phrase}
+            disabled={loading || !phrase}
           >
             Сброс
           </button>
         </div>
         {parsedResult && (
           <p className="parsed-info">
-            <strong>{parsedResult.productName}</strong> — изготовление: {new Date(parsedResult.madeAt).toLocaleString('ru-RU')}, срок до: {new Date(parsedResult.expiresAt).toLocaleString('ru-RU')}
+            <strong>{parsedResult.productName}</strong>
+            {labelMode === 'single'
+              ? ` — изготовление: ${new Date(parsedResult.madeAt).toLocaleString('ru-RU')}`
+              : ` — изготовление: ${new Date(parsedResult.madeAt).toLocaleString('ru-RU')}, срок до: ${new Date(parsedResult.expiresAt).toLocaleString('ru-RU')}`}
           </p>
         )}
       </section>
@@ -1490,11 +1531,13 @@ function App() {
         </div>
       )}
 
-      {status && (
-        <p className={status.type === 'ok' ? 'status ok' : 'status error'}>
-          {status.message}
-        </p>
-      )}
+      <div className="status-wrap">
+        {status && (
+          <p className={status.type === 'ok' ? 'status ok' : 'status error'}>
+            {status.message}
+          </p>
+        )}
+      </div>
     </div>
   )
 }
