@@ -92,6 +92,7 @@ function App() {
   const autoPrintTimerRef = useRef(null)
   const okPrintTimerRef = useRef(null)
   const pendingVoiceTemplatesRef = useRef([])
+  const voiceAccumulatedRef = useRef([]) // накопленные шаблоны между сессиями распознавания
 
   // Справочник сроков
   const [shelfItems, setShelfItems] = useState([])
@@ -146,6 +147,7 @@ function App() {
   })
 
   const [labelMode, setLabelMode] = useState('double') // 'double' | 'single'
+  const labelModeRef = useRef('double')
   const [activeTab, setActiveTab] = useState('main')
   const [theme, setTheme] = useState(() => {
     try {
@@ -167,6 +169,10 @@ function App() {
   useEffect(() => {
     voiceModeRef.current = isVoiceMode
   }, [isVoiceMode])
+
+  useEffect(() => {
+    labelModeRef.current = labelMode
+  }, [labelMode])
 
   useEffect(() => {
     pendingVoiceTemplatesRef.current = pendingVoiceTemplates
@@ -298,6 +304,35 @@ function App() {
       .filter(Boolean)
   }
 
+  const QUANTITY_WORDS = {
+    'два':2,'две':2,'три':3,'четыре':4,'пять':5,'шесть':6,'семь':7,'восемь':8,'девять':9,
+    'десять':10,'одиннадцать':11,'двенадцать':12,'тринадцать':13,'четырнадцать':14,'пятнадцать':15,
+    'шестнадцать':16,'семнадцать':17,'восемнадцать':18,'девятнадцать':19,'двадцать':20,
+    'тридцать':30,'сорок':40,'пятьдесят':50,
+  }
+
+  const parseQuantityWord = (word) => {
+    if (!word) return NaN
+    const w = word.toLowerCase().trim()
+    if (/^\d+$/.test(w)) return parseInt(w, 10)
+    if (QUANTITY_WORDS[w] != null) return QUANTITY_WORDS[w]
+    const parts = w.split(/\s+/)
+    if (parts.length === 2 && QUANTITY_WORDS[parts[0]] && QUANTITY_WORDS[parts[1]]) {
+      return QUANTITY_WORDS[parts[0]] + QUANTITY_WORDS[parts[1]]
+    }
+    return NaN
+  }
+
+  // «N штук» / «N штуки» в конце шаблона → { phrase, count }. N от 2 до 50. Поддерживает слова.
+  const parseTemplateQuantity = (template) => {
+    const trimmed = (template || '').trim()
+    const m = trimmed.match(/\s+(\S+(?:\s+\S+)?)\s+штук(?:и|а|е)?\s*$/i)
+    if (!m) return { phrase: trimmed, count: 1 }
+    const n = parseQuantityWord(m[1])
+    if (Number.isNaN(n) || n < 2 || n > 50) return { phrase: trimmed, count: 1 }
+    return { phrase: trimmed.slice(0, m.index).trim(), count: n }
+  }
+
   const clearAutoPrintTimer = () => {
     if (autoPrintTimerRef.current) {
       clearTimeout(autoPrintTimerRef.current)
@@ -306,9 +341,11 @@ function App() {
   }
 
   // Отправка фразы на разбор и печать (общая логика для кнопки и голоса)
+  // Возвращает true при успехе, false при ошибке.
   const sendPhraseToPrint = async (text) => {
     const trimmed = normalizePhrase(text)
-    if (!trimmed) return
+    if (!trimmed) return false
+    const currentMode = labelModeRef.current
     setStatus(null)
     setParsedResult(null)
     setLoading(true)
@@ -316,19 +353,60 @@ function App() {
       const res = await fetch(`${API_BASE}/api/print`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phrase: trimmed, singleMode: labelMode === 'single' }),
+        body: JSON.stringify({ phrase: trimmed, singleMode: currentMode === 'single' }),
       })
       const data = await res.json().catch(() => ({}))
       if (res.ok) {
         setStatus({ type: 'ok', message: data.message || 'Этикетка отправлена на печать.' })
-      } else {
-        setStatus({ type: 'error', message: data.message || data.error || `Ошибка ${res.status}` })
+        return true
       }
+      setStatus({ type: 'error', message: data.message || data.error || `Ошибка ${res.status}` })
+      return false
     } catch (err) {
       setStatus({ type: 'error', message: 'Сервер недоступен.' })
+      return false
     } finally {
       setLoading(false)
     }
+  }
+
+  // Объединяет строки «N штук» (отдельные или в составе шаблона) с соответствующими шаблонами.
+  // Возвращает массив { phrase, count }.
+  const resolveTemplatesWithQuantity = (templates) => {
+    const result = []
+    for (const t of templates) {
+      const trimmed = (t || '').trim()
+      // Чисто «N штук» без продукта (например «4 штуки», «четыре штуки»)
+      const isOnlyQtyWithNum = /^\s*(\S+(?:\s+\S+)?)\s+штук(?:и|а|е)?\s*$/i.test(trimmed)
+      if (isOnlyQtyWithNum && result.length) {
+        const qtyMatch = trimmed.match(/^(\S+(?:\s+\S+)?)\s+штук/i)
+        if (qtyMatch) {
+          const n = parseQuantityWord(qtyMatch[1])
+          if (!Number.isNaN(n) && n >= 2 && n <= 50) {
+            result[result.length - 1].count = n
+            continue
+          }
+        }
+      }
+      // Просто «штуки» без числа — число может быть в конце предыдущего шаблона
+      const isOnlyQtyWord = /^\s*штук(?:и|а|е)?\s*$/i.test(trimmed)
+      if (isOnlyQtyWord && result.length) {
+        const prevPhrase = result[result.length - 1].phrase
+        const trailingNum = prevPhrase.match(/\s+(\d+)\s*$/)
+        if (trailingNum) {
+          const n = parseInt(trailingNum[1], 10)
+          if (n >= 2 && n <= 50) {
+            result[result.length - 1].phrase = prevPhrase.slice(0, trailingNum.index).trim()
+            result[result.length - 1].count = n
+            continue
+          }
+        }
+        continue
+      }
+      const { phrase, count } = parseTemplateQuantity(t)
+      result.push({ phrase, count })
+    }
+    return result
   }
 
   const triggerVoiceBatchPrint = (templates) => {
@@ -337,8 +415,18 @@ function App() {
     clearAutoPrintTimer()
     setPendingVoiceTemplates([])
     ;(async () => {
-      for (const t of list) {
-        await sendPhraseToPrint(t)
+      let allOk = true
+      const resolved = resolveTemplatesWithQuantity(list)
+      for (const { phrase, count } of resolved) {
+        for (let i = 0; i < count; i++) {
+          const ok = await sendPhraseToPrint(phrase)
+          if (!ok) allOk = false
+        }
+      }
+      if (allOk) {
+        setPhrase('')
+        setParsedResult(null)
+        voiceAccumulatedRef.current = []
       }
     })()
   }
@@ -383,33 +471,67 @@ function App() {
       return
     }
 
-    const segments = withoutOk
-      .split(/\s+и\s+/i)
-      .map((s) => normalizePhrase(s.trim()))
-      .filter(Boolean)
+    // Слова-числительные и «штук» — не считаются началом нового шаблона
+    const quantityWords = /^(два|две|три|четыре|пять|шесть|семь|восемь|девять|десять|одиннадцать|двенадцать|тринадцать|четырнадцать|пятнадцать|шестнадцать|семнадцать|восемнадцать|девятнадцать|двадцать|тридцать|сорок|пятьдесят|штук|штуки|штука|штуке)\b/i
 
-    if (!segments.length) return
+    const parseToSegments = (text) =>
+      text
+        .split(/\s+и\s+/i)
+        .flatMap((s) => {
+          const normalized = normalizePhrase(s.trim())
+          if (!normalized) return []
+          const parts = normalized.split(/(?<=\d{1,2}\s+\d{1,2}\s+\d{1,2}\s+\d{1,2})\s+(?=[а-яёa-z])/i)
+          // Склеиваем обратно фрагменты, начинающиеся с числительных/«штук»
+          const merged = []
+          for (const p of parts) {
+            const clean = normalizePhrase(p.trim())
+            if (!clean) continue
+            if (merged.length && quantityWords.test(clean)) {
+              merged[merged.length - 1] += ' ' + clean
+            } else {
+              merged.push(clean)
+            }
+          }
+          return merged
+        })
 
-    const updated = [...pendingVoiceTemplates, ...segments]
+    const newSegments = parseToSegments(withoutOk)
+    if (!newSegments.length) return
+
+    // Новая сессия распознавания даёт только новый фрагмент — дополняем. Иначе заменяем полным транскриптом.
+    const prevJoined = voiceAccumulatedRef.current.join(' ')
+    const isNewSession = prevJoined && !withoutOk.startsWith(prevJoined) && withoutOk !== prevJoined
+    let updated
+    if (isNewSession) {
+      const prev = voiceAccumulatedRef.current
+      const last = prev[prev.length - 1]
+      const firstNew = newSegments[0]
+      // Если новый сегмент — количественный суффикс (например «штуки», «4 штуки»), склеиваем с последним
+      const allNewText = newSegments.join(' ').trim()
+      const isQtySuffix = /^(\S+\s+)?штук(?:и|а|е)?\s*$/i.test(allNewText)
+      if (isQtySuffix && prev.length) {
+        updated = [...prev.slice(0, -1), last + ' ' + allNewText]
+      } else if (last && firstNew && firstNew.startsWith(last)) {
+        updated = [...prev.slice(0, -1), ...newSegments]
+      } else {
+        updated = [...prev, ...newSegments]
+      }
+    } else {
+      updated = newSegments
+    }
+    voiceAccumulatedRef.current = updated
 
     if (hasOk) {
+      voiceAccumulatedRef.current = []
       triggerVoiceBatchPrint(updated)
       setPendingVoiceTemplates([])
-      setPhrase((prev) => {
-        const existing = splitTextTemplates(prev).join('\n')
-        const base = existing ? `${existing}\n` : ''
-        return `${base}${segments.join('\n')}`
-      })
+      setPhrase(updated.join('\n'))
       return
     }
 
     setPendingVoiceTemplates(updated)
     scheduleAutoPrint(updated)
-    setPhrase((prev) => {
-      const existing = splitTextTemplates(prev).join('\n')
-      const base = existing ? `${existing}\n` : ''
-      return `${base}${segments.join('\n')}`
-    })
+    setPhrase(updated.join('\n'))
   }
 
   const startVoiceSession = () => {
@@ -427,13 +549,10 @@ function App() {
     recognitionRef.current = recognition
 
     recognition.onresult = (event) => {
-      const transcript = event.results[0][0].transcript
+      const transcript = Array.from(event.results)
+        .map((r) => r[0]?.transcript || '')
+        .join(' ')
       addVoiceTemplatesFromTranscript(transcript)
-      try {
-        recognition.stop()
-      } catch {
-        // ignore
-      }
     }
 
     recognition.onerror = (event) => {
@@ -491,22 +610,25 @@ function App() {
     }
   }
 
-  const handleParseAndPrint = () => {
+  const handleParseAndPrint = async () => {
     const templates = splitTextTemplates(phrase)
     if (!templates.length) {
       setStatus({ type: 'error', message: 'Введите фразу.' })
       return
     }
-    if (templates.length === 1) {
-      sendPhraseToPrint(templates[0])
-      return
-    }
     setStatus(null)
-    ;(async () => {
-      for (const t of templates) {
-        await sendPhraseToPrint(t)
+    const resolved = resolveTemplatesWithQuantity(templates)
+    let allOk = true
+    for (const { phrase: p, count } of resolved) {
+      for (let i = 0; i < count; i++) {
+        const ok = await sendPhraseToPrint(p)
+        if (!ok) allOk = false
       }
-    })()
+    }
+    if (allOk) {
+      setPhrase('')
+      setParsedResult(null)
+    }
   }
 
   const handleClearPhrase = () => {
@@ -514,6 +636,7 @@ function App() {
     setParsedResult(null)
     setStatus(null)
     setPendingVoiceTemplates([])
+    voiceAccumulatedRef.current = []
     clearAutoPrintTimer()
   }
 
@@ -709,7 +832,7 @@ function App() {
       const res = await fetch(`${API_BASE}/api/parse`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phrase: text, singleMode: labelMode === 'single' }),
+        body: JSON.stringify({ phrase: text, singleMode: labelModeRef.current === 'single' }),
       })
       const data = await res.json().catch(() => ({}))
       if (res.ok) {
@@ -819,7 +942,7 @@ function App() {
 
       {activeTab === 'main' && (
       <section className="card">
-        <p>Фраза (продукт и дата/время изготовления):</p>
+        <p>Фраза (продукт и дата/время изготовления). Для пакетной печати добавьте «N штук» (2–50):</p>
         <div className="phrase-row">
           <div className="phrase-input-wrap">
             <textarea
