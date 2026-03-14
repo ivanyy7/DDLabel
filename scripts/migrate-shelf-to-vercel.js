@@ -7,8 +7,12 @@
 const fs = require('fs');
 const path = require('path');
 
-const API_URL = process.env.VERCEL_API_URL || 'https://dd-label.vercel.app';
+const API_URL = (process.env.VERCEL_API_URL || 'https://dd-label.vercel.app').replace(/\/$/, '');
 const SHELF_PATH = path.join(__dirname, '..', 'server', 'data', 'shelf.json');
+
+function sleep(ms) {
+  return new Promise((r) => setTimeout(r, ms));
+}
 
 async function migrate() {
   if (!fs.existsSync(SHELF_PATH)) {
@@ -65,6 +69,7 @@ async function migrate() {
       console.error(`[ОШИБКА] ${i + 1}/${items.length}: ${item.productName} — ${e.message}`);
       fail++;
     }
+    await sleep(300);
   }
 
   console.log('---');

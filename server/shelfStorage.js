@@ -58,23 +58,13 @@ function read() {
   if (!isVercel) return Promise.resolve(readLocal());
   return (async () => {
     try {
-      const { get } = await import('@vercel/blob');
-      const result = await get(BLOB_PATH, { access: 'public' });
-      if (!result || result.statusCode !== 200) return [];
-      const stream = result.stream;
-      const chunks = [];
-      if (stream.getReader) {
-        const reader = stream.getReader();
-        let done = false;
-        while (!done) {
-          const { value, done: d } = await reader.read();
-          done = d;
-          if (value) chunks.push(value);
-        }
-      } else {
-        for await (const chunk of stream) chunks.push(chunk);
-      }
-      const raw = Buffer.concat(chunks).toString('utf8');
+      const { list } = await import('@vercel/blob');
+      const { blobs } = await list({ prefix: BLOB_PATH, limit: 1 });
+      const blob = blobs.find((b) => b.pathname === BLOB_PATH);
+      if (!blob?.url) return [];
+      const res = await fetch(blob.url);
+      if (!res.ok) return [];
+      const raw = await res.text();
       const data = JSON.parse(raw);
       return Array.isArray(data) ? data : [];
     } catch (e) {
