@@ -110,22 +110,38 @@ async function getOrRequestDevice() {
   if (navigator.bluetooth.getDevices) {
     try {
       const devices = await navigator.bluetooth.getDevices()
+      // #region agent log
+      _dl('getDevices result', { count: devices.length, names: devices.map(d => d.name) })
+      // #endregion
       for (const d of devices) {
-        if (d.name && d.name.includes('XP-365B')) {
+        if (d.name && d.name.startsWith('XP-')) {
           try {
+            if (d.watchAdvertisements) {
+              const ac = new AbortController()
+              await d.watchAdvertisements({ signal: ac.signal })
+              await new Promise((resolve, reject) => {
+                const t = setTimeout(() => { ac.abort(); reject(new Error('ad-timeout')) }, 4000)
+                d.addEventListener('advertisementreceived', () => { clearTimeout(t); ac.abort(); resolve() }, { once: true })
+              })
+            }
             await d.gatt.connect()
             _cachedDevice = d
             // #region agent log
-            _dl('reconnected via getDevices', { name: d.name })
+            _dl('reconnected via getDevices+watchAd', { name: d.name })
             // #endregion
             return d
-          } catch {
+          } catch (e) {
+            // #region agent log
+            _dl('getDevices reconnect failed', { name: d.name, err: e.message })
+            // #endregion
             continue
           }
         }
       }
-    } catch {
-      // getDevices() не поддерживается или ошибка
+    } catch (e) {
+      // #region agent log
+      _dl('getDevices error', { err: e.message })
+      // #endregion
     }
   }
 

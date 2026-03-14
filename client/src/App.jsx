@@ -1036,6 +1036,24 @@ function App() {
                 document.addEventListener('mousemove', onMove)
                 document.addEventListener('mouseup', onUp)
               }}
+              onTouchStart={(e) => {
+                e.preventDefault()
+                const touch = e.touches[0]
+                phraseResizeRef.current = { startY: touch.clientY, startHeight: phraseHeight }
+                const onMove = (ev) => {
+                  if (!phraseResizeRef.current) return
+                  const t = ev.touches[0]
+                  const dy = t.clientY - phraseResizeRef.current.startY
+                  setPhraseHeight(() => Math.min(400, Math.max(36, phraseResizeRef.current.startHeight + dy)))
+                }
+                const onUp = () => {
+                  phraseResizeRef.current = null
+                  document.removeEventListener('touchmove', onMove)
+                  document.removeEventListener('touchend', onUp)
+                }
+                document.addEventListener('touchmove', onMove, { passive: false })
+                document.addEventListener('touchend', onUp)
+              }}
               title="Потяните для изменения высоты"
             />
           </div>
