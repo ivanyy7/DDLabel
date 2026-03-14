@@ -58,19 +58,14 @@ function read() {
   if (!isVercel) return Promise.resolve(readLocal());
   return (async () => {
     try {
-      const { list } = await import('@vercel/blob');
-      const { blobs } = await list({ limit: 100 });
-      const blob = blobs.find((b) => b.pathname === BLOB_PATH || (b.pathname && b.pathname.endsWith('/' + BLOB_PATH)));
-      if (!blob?.url) return [];
-      const cacheBuster = '_=' + Date.now();
-      const separator = blob.url.includes('?') ? '&' : '?';
-      const res = await fetch(blob.url + separator + cacheBuster);
-      if (!res.ok) return [];
-      const raw = await res.text();
+      const { get } = await import('@vercel/blob');
+      const result = await get(BLOB_PATH, { access: 'public' });
+      if (!result) return [];
+      const raw = await result.text();
       const data = JSON.parse(raw);
       return Array.isArray(data) ? data : [];
     } catch (e) {
-      if (e.code === 'BLOB_NOT_FOUND' || e.message?.includes('Blob') || e.message?.includes('404')) return [];
+      if (e.code === 'BLOB_NOT_FOUND' || e.message?.includes('not found') || e.message?.includes('404')) return [];
       console.error('[shelfStorage] Ошибка чтения Blob:', e.message);
       return [];
     }

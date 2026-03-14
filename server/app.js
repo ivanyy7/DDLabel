@@ -286,6 +286,16 @@ app.post('/api/shelf-import', async (req, res) => {
       if (Array.isArray(item.aliases) && item.aliases.length) entry.aliases = item.aliases.map((a) => String(a).trim()).filter(Boolean);
       return entry;
     }).filter((e) => e.productName && !Number.isNaN(e.value));
+
+    if (process.env.VERCEL) {
+      const { list, del } = await import('@vercel/blob');
+      const { blobs } = await list({ limit: 500 });
+      const shelfBlobs = blobs.filter((b) => b.pathname === 'shelf.json' || (b.pathname && b.pathname.endsWith('/shelf.json')));
+      if (shelfBlobs.length > 0) {
+        await del(shelfBlobs.map((b) => b.url));
+      }
+    }
+
     await shelfStorage.write(normalized);
     res.status(200).json({ ok: true, message: `Импортировано ${normalized.length} записей.`, count: normalized.length });
   } catch (e) {
