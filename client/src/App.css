@@ -526,6 +526,10 @@ html[data-theme="dark"] .card .mode-toggle-btn.mode-toggle-active {
   color: #c00;
 }
 
+.status.info {
+  color: #07a;
+}
+
 .card-title {
   margin: 0 0 0.5rem;
   font-size: 1.1rem;

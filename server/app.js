@@ -196,6 +196,75 @@ app.post('/api/print', async (req, res) => {
   doPrint({ productName, madeAt, expiresAt, productLabelText }, res, tsplBuilder);
 });
 
+/** Возвращает TSPL в base64 (CP866) для печати по Bluetooth с телефона. */
+app.post('/api/print-tspl', async (req, res) => {
+  // #region agent log
+  const fs=require('fs'),_dlS=(msg,data)=>{try{fs.appendFileSync('debug-d04e56.log',JSON.stringify({sessionId:'d04e56',location:'app.js:/api/print-tspl',message:msg,data,timestamp:Date.now(),hypothesisId:'H4'})+'\n');}catch(e){}};
+  // #endregion
+  const body = req.body || {};
+  const singleMode = body.singleMode === true;
+  let productName, madeAt, expiresAt;
+  // #region agent log
+  _dlS('entry',{phrase:body.phrase,singleMode,hasPhrase:body.phrase!=null});
+  // #endregion
+
+  if (body.phrase != null && String(body.phrase).trim()) {
+    const phrase = String(body.phrase).trim();
+    const parsed = parsePhraseWithMode(phrase);
+    if (parsed.error) {
+      // #region agent log
+      _dlS('parse error',{error:parsed.error,phrase});
+      // #endregion
+      res.status(400).json({ ok: false, error: `${parsed.error} Вы сказали: «${phrase}».` });
+      return;
+    }
+    productName = parsed.productName;
+    madeAt = parsed.madeAt;
+    // #region agent log
+    _dlS('parsed ok',{productName,madeAt:String(madeAt),isMadeAtDate:madeAt instanceof Date});
+    // #endregion
+    if (singleMode) {
+      expiresAt = madeAt;
+    } else {
+      const resolved = await resolveExpiry(parsed);
+      if (resolved.error) {
+        // #region agent log
+        _dlS('resolveExpiry error',{error:resolved.error});
+        // #endregion
+        res.status(400).json({ ok: false, error: `${resolved.error} Вы сказали: «${phrase}».` });
+        return;
+      }
+      productName = resolved.productName;
+      expiresAt = resolved.expiresAt;
+    }
+  } else {
+    productName = body.productName != null ? String(body.productName) : defaultLabel.productName;
+    madeAt = parseDate(body.madeAt != null ? body.madeAt : defaultLabel.madeAt);
+    expiresAt = parseDate(body.expiresAt != null ? body.expiresAt : defaultLabel.expiresAt);
+  }
+
+  const productLabelText = await shelfStorage.getLabelText(productName);
+  const tsplBuilder = singleMode ? buildTsplLabelSingle : buildTsplLabel;
+  try {
+    const cmd = tsplBuilder({
+      productName: productLabelText || productName,
+      madeAt,
+      expiresAt,
+    });
+    const buf = iconv.encode(cmd, 'cp866');
+    const tsplBase64 = buf.toString('base64');
+    // #region agent log
+    _dlS('response ok',{base64Len:tsplBase64.length,cmdLen:cmd.length,productName});
+    // #endregion
+    res.json({ ok: true, tsplBase64 });
+  } catch (buildErr) {
+    // #region agent log
+    _dlS('build error',{name:buildErr.name,message:buildErr.message,stack:buildErr.stack?.slice(0,300)});
+    // #endregion
+    res.status(500).json({ ok: false, error: 'Ошибка формирования этикетки: ' + buildErr.message });
+  }
+});
+
 app.get('/api/tspl-fonts', (_req, res) => {
   const list = Object.entries(TSPL_FONTS).map(([id, info]) => ({ id, ...info }));
   res.json({ ok: true, fonts: list });

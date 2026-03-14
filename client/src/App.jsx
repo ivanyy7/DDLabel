@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { sendTsplViaBluetooth, isBluetoothPrintAvailable } from './bluetoothPrint.js'
 import './App.css'
 
 const API_BASE = import.meta.env.VITE_API_URL || ''
@@ -361,8 +362,48 @@ function App() {
         return true
       }
       const errMsg = data.message || data.error || `Ошибка ${res.status}`
+      // #region agent log
+      fetch('http://127.0.0.1:7902/ingest/125efaa0-8f20-4b5f-a685-041b1c8d9b4d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'d04e56'},body:JSON.stringify({sessionId:'d04e56',location:'App.jsx:sendPhraseToPrint',message:'503 branch check',data:{status:res.status,errMsg,btAvail:isBluetoothPrintAvailable(),includes:errMsg.includes('локальном запуске')},timestamp:Date.now(),hypothesisId:'H2'})}).catch(()=>{});
+      // #endregion
+      if (res.status === 503 && errMsg.includes('локальном запуске') && isBluetoothPrintAvailable()) {
+        setStatus({ type: 'info', message: 'Печать по Bluetooth… Выберите принтер.' })
+        try {
+          // #region agent log
+          const _t0 = Date.now();
+          // #endregion
+          const tsplRes = await fetch(`${API_BASE}/api/print-tspl`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ phrase: trimmed, singleMode: currentMode === 'single' }),
+          })
+          const tsplData = await tsplRes.json().catch(() => ({}))
+          // #region agent log
+          fetch('http://127.0.0.1:7902/ingest/125efaa0-8f20-4b5f-a685-041b1c8d9b4d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'d04e56'},body:JSON.stringify({sessionId:'d04e56',location:'App.jsx:sendPhraseToPrint',message:'print-tspl response',data:{ok:tsplRes.ok,status:tsplRes.status,hasBase64:!!tsplData.tsplBase64,base64Len:tsplData.tsplBase64?.length,elapsed:Date.now()-_t0},timestamp:Date.now(),hypothesisId:'H4_H5'})}).catch(()=>{});
+          // #endregion
+          if (!tsplRes.ok || !tsplData.tsplBase64) {
+            setStatus({ type: 'error', message: tsplData.error || 'Не удалось получить данные для печати.' })
+            return false
+          }
+          const bt = await sendTsplViaBluetooth(tsplData.tsplBase64)
+          // #region agent log
+          fetch('http://127.0.0.1:7902/ingest/125efaa0-8f20-4b5f-a685-041b1c8d9b4d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'d04e56'},body:JSON.stringify({sessionId:'d04e56',location:'App.jsx:sendPhraseToPrint',message:'bluetooth result',data:{btOk:bt.ok,btError:bt.error,totalElapsed:Date.now()-_t0},timestamp:Date.now(),hypothesisId:'H1_H2_H3'})}).catch(()=>{});
+          // #endregion
+          if (bt.ok) {
+            setStatus({ type: 'ok', message: 'Этикетка отправлена на печать по Bluetooth.' })
+            return true
+          }
+          setStatus({ type: 'error', message: bt.error || 'Ошибка печати по Bluetooth.' })
+          return false
+        } catch (e) {
+          // #region agent log
+          fetch('http://127.0.0.1:7902/ingest/125efaa0-8f20-4b5f-a685-041b1c8d9b4d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'d04e56'},body:JSON.stringify({sessionId:'d04e56',location:'App.jsx:sendPhraseToPrint',message:'bluetooth catch',data:{name:e?.name,message:e?.message},timestamp:Date.now(),hypothesisId:'H2'})}).catch(()=>{});
+          // #endregion
+          setStatus({ type: 'error', message: e.message || 'Ошибка печати по Bluetooth.' })
+          return false
+        }
+      }
       if (res.status === 503 && errMsg.includes('локальном запуске')) {
-        setStatus({ type: 'error', message: 'Печать по USB доступна только при локальном запуске на ПК с принтером.' })
+        setStatus({ type: 'error', message: 'Печать по USB доступна только при локальном запуске на ПК с принтером. Для печати с телефона нужен Chrome 117+ (ПК) или Chrome 138+ (Android) и Bluetooth.' })
       } else {
         setStatus({ type: 'error', message: errMsg })
       }
@@ -1666,7 +1707,7 @@ function App() {
 
       <div className="status-wrap">
         {status && (
-          <p className={status.type === 'ok' ? 'status ok' : 'status error'}>
+          <p className={`status ${status.type === 'ok' ? 'ok' : status.type === 'info' ? 'info' : 'error'}`}>
             {status.message}
           </p>
         )}
