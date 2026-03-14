@@ -423,15 +423,8 @@ html[data-theme="dark"] .voice-btn.voice-btn-active {
 .mode-toggle-btn {
   padding: 0.5rem 1rem;
   border-radius: 8px;
-  border: 1px solid #999 !important;
-  background: #e0e0e0 !important;
-  color: #1a1a1a !important;
   cursor: pointer;
   font-size: 0.95rem;
-}
-
-.mode-toggle-btn:hover:not(:disabled) {
-  background: #d0d0d0;
 }
 
 .mode-toggle-active {
