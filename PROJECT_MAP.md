@@ -43,4 +43,5 @@
 
 - Локальный принтер Xprinter XP-365B (USB, затем Bluetooth на этапе 3). Внешних облачных сервисов пока нет.
 - **Этап 2.1 (выполнено):** `vercel.json` — конфиг деплоя; `api/index.js` — serverless-точка входа (экспорт Express); `server/app.js` — Express без listen, условная загрузка USB, `POST /api/shelf-import` (bulk-импорт с очисткой дубликатов); `server/shelfStorage.js` — fs (локально) / Vercel Blob 2.3.1 (облако, `get()` + `allowOverwrite`); `scripts/migrate-shelf-to-vercel.js` — перенос справочника одним запросом; `docs/vercel-deploy.md` — инструкция по деплою и миграции.
-- **Планируется (Этап 2):** 8.2 PWA → 8.3 Раздел «Печать» → 8.4 Синхронизация → 8.5 Bluetooth → 8.6 Офлайн.
+- **Этап 2.2 (выполнено):** PWA — `client/public/manifest.json`, `client/public/sw.js`, `client/public/icons/` (192/512 px), мета-теги в index.html, регистрация SW в main.jsx. «Добавить на главный экран» — standalone, без адресной строки.
+- **Планируется (Этап 2):** 8.3 Раздел «Печать» в Настройках → 8.4 Синхронизация → 8.5 Bluetooth → 8.6 Офлайн.
