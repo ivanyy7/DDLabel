@@ -988,13 +988,14 @@ function App() {
         </div>
         <div className="card-buttons phrase-buttons">
           <button
+            type="button"
             onClick={handleVoiceToggle}
             disabled={loading}
             className={isVoiceMode ? 'voice-btn voice-btn-active' : 'voice-btn'}
           >
             Голос
           </button>
-          <button onClick={handleParseAndPrint} disabled={loading}>
+          <button type="button" onClick={handleParseAndPrint} disabled={loading}>
             {loading ? 'Отправка…' : 'на Печать'}
           </button>
           <button

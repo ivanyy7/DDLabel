@@ -300,6 +300,15 @@ html[data-theme="light"] .card button {
   background-color: #1a1a1a !important;
 }
 
+html[data-theme="light"] .shelf-actions-cell .shelf-del-btn {
+  background-color: #c00 !important;
+  color: #fff !important;
+}
+
+html[data-theme="light"] .shelf-actions-cell .shelf-del-btn:hover:not(:disabled) {
+  background-color: #a00 !important;
+}
+
 html[data-theme="light"] .theme-toggle-btn:not(.theme-toggle-active) {
   color: #1a1a1a !important;
   background-color: #b8b8b8 !important;
