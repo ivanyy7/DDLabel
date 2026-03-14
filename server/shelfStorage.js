@@ -60,25 +60,14 @@ function read() {
     try {
       const { list } = await import('@vercel/blob');
       const { blobs } = await list({ limit: 100 });
-      // #region agent log
-      fetch('http://127.0.0.1:7902/ingest/125efaa0-8f20-4b5f-a685-041b1c8d9b4d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'d04e56'},body:JSON.stringify({sessionId:'d04e56',location:'shelfStorage.js:read',message:'list() result',data:{blobCount:blobs.length,pathnames:blobs.map(b=>b.pathname)},timestamp:Date.now(),hypothesisId:'B+C'})}).catch(()=>{});
-      // #endregion
       const blob = blobs.find((b) => b.pathname === BLOB_PATH || (b.pathname && b.pathname.endsWith('/' + BLOB_PATH)));
-      // #region agent log
-      fetch('http://127.0.0.1:7902/ingest/125efaa0-8f20-4b5f-a685-041b1c8d9b4d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'d04e56'},body:JSON.stringify({sessionId:'d04e56',location:'shelfStorage.js:read',message:'blob found',data:{found:!!blob,blobPathname:blob?.pathname,blobUrl:blob?.url ? blob.url.slice(0,60)+'...' : null},timestamp:Date.now(),hypothesisId:'B+C'})}).catch(()=>{});
-      // #endregion
       if (!blob?.url) return [];
-      const res = await fetch(blob.url, { cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } });
-      // #region agent log
-      fetch('http://127.0.0.1:7902/ingest/125efaa0-8f20-4b5f-a685-041b1c8d9b4d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'d04e56'},body:JSON.stringify({sessionId:'d04e56',location:'shelfStorage.js:read',message:'fetch blob url result',data:{status:res.status,ok:res.ok},timestamp:Date.now(),hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
+      const cacheBuster = '_=' + Date.now();
+      const separator = blob.url.includes('?') ? '&' : '?';
+      const res = await fetch(blob.url + separator + cacheBuster);
       if (!res.ok) return [];
       const raw = await res.text();
-      let data;
-      try { data = JSON.parse(raw); } catch(pe) { data = []; }
-      // #region agent log
-      fetch('http://127.0.0.1:7902/ingest/125efaa0-8f20-4b5f-a685-041b1c8d9b4d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'d04e56'},body:JSON.stringify({sessionId:'d04e56',location:'shelfStorage.js:read',message:'parsed data',data:{isArray:Array.isArray(data),length:Array.isArray(data)?data.length:-1,firstItem:Array.isArray(data)&&data[0]?data[0].productName:null},timestamp:Date.now(),hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
+      const data = JSON.parse(raw);
       return Array.isArray(data) ? data : [];
     } catch (e) {
       if (e.code === 'BLOB_NOT_FOUND' || e.message?.includes('Blob') || e.message?.includes('404')) return [];
@@ -97,13 +86,7 @@ function write(items) {
   return (async () => {
     try {
       const { put } = await import('@vercel/blob');
-      // #region agent log
-      fetch('http://127.0.0.1:7902/ingest/125efaa0-8f20-4b5f-a685-041b1c8d9b4d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'d04e56'},body:JSON.stringify({sessionId:'d04e56',location:'shelfStorage.js:write',message:'writing to blob',data:{itemsCount:items.length,items:items.map(i=>i.productName)},timestamp:Date.now(),hypothesisId:'A+D'})}).catch(()=>{});
-      // #endregion
-      const putResult = await put(BLOB_PATH, JSON.stringify(items, null, 2), { access: 'public', allowOverwrite: true });
-      // #region agent log
-      fetch('http://127.0.0.1:7902/ingest/125efaa0-8f20-4b5f-a685-041b1c8d9b4d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'d04e56'},body:JSON.stringify({sessionId:'d04e56',location:'shelfStorage.js:write',message:'put result',data:{pathname:putResult?.pathname,url:putResult?.url?putResult.url.slice(0,60)+'...':null},timestamp:Date.now(),hypothesisId:'B'})}).catch(()=>{});
-      // #endregion
+      await put(BLOB_PATH, JSON.stringify(items, null, 2), { access: 'public', allowOverwrite: true, cacheControlMaxAge: 60 });
     } catch (e) {
       console.error('[shelfStorage] Ошибка записи Blob:', e.message);
       throw new Error(`Не удалось сохранить справочник: ${e.message}`);
