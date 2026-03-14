@@ -32,6 +32,23 @@
 - Парсинг фраз и CRUD справочника работают в облаке
 - Печать по USB — только при локальном запуске (`cd server && npm start`)
 
+## Перенос справочника на Vercel
+
+После деплоя Blob Store пустой. Чтобы перенести данные из локального `server/data/shelf.json`:
+
+```powershell
+$env:VERCEL_API_URL = "https://ddlabel-xxx.vercel.app"
+npm run migrate:shelf
+```
+
+Либо без переменной (по умолчанию `https://dd-label.vercel.app`):
+
+```powershell
+npm run migrate:shelf
+```
+
+Скрипт выводит по каждой записи `[OK]` или `[ОШИБКА]` — по ним можно понять, где возникла проблема.
+
 ## Локальная разработка
 
 - Клиент: `cd client && npm run dev`

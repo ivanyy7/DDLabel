@@ -5,7 +5,8 @@
   "scripts": {
     "build": "cd client && npm run build",
     "dev": "cd client && npm run dev",
-    "server": "cd server && npm start"
+    "server": "cd server && npm start",
+    "migrate:shelf": "node scripts/migrate-shelf-to-vercel.js"
   },
   "engines": {
     "node": ">=18"
