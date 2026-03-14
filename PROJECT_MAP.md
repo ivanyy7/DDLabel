@@ -42,4 +42,5 @@
 ## Внешние сервисы
 
 - Локальный принтер Xprinter XP-365B (USB, затем Bluetooth на этапе 3). Внешних облачных сервисов пока нет.
-- **Планируется (Этап 2):** Vercel — бэкенд и фронт; телефон → Vercel (API) → Bluetooth → принтер. PWA для телефона. Telegram отложен в пользу Vercel + Web/PWA.
+- **Этап 2.1 (реализовано):** `vercel.json` — конфиг деплоя; `api/index.js` — serverless-точка входа (экспорт Express); `server/app.js` — Express без listen, условная загрузка USB; `server/shelfStorage.js` — fs (локально) / Vercel Blob (облако); `docs/vercel-deploy.md` — инструкция по деплою.
+- **Планируется (Этап 2):** Выполнить деплой по docs/vercel-deploy.md; 8.2 PWA → 8.3 Раздел «Печать» → 8.4 Синхронизация → 8.5 Bluetooth → 8.6 Офлайн.

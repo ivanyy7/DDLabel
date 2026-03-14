@@ -360,7 +360,12 @@ function App() {
         setStatus({ type: 'ok', message: data.message || 'Этикетка отправлена на печать.' })
         return true
       }
-      setStatus({ type: 'error', message: data.message || data.error || `Ошибка ${res.status}` })
+      const errMsg = data.message || data.error || `Ошибка ${res.status}`
+      if (res.status === 503 && errMsg.includes('локальном запуске')) {
+        setStatus({ type: 'error', message: 'Печать по USB доступна только при локальном запуске на ПК с принтером.' })
+      } else {
+        setStatus({ type: 'error', message: errMsg })
+      }
       return false
     } catch (err) {
       setStatus({ type: 'error', message: 'Сервер недоступен.' })
@@ -1444,7 +1449,12 @@ function App() {
                 if (res.ok) {
                   setStatus({ type: 'ok', message: data.message || 'Тестовая этикетка отправлена на печать.' })
                 } else {
-                  setStatus({ type: 'error', message: data.error || data.message || `Ошибка ${res.status}` })
+                  const errMsg = data.message || data.error || `Ошибка ${res.status}`
+                  if (res.status === 503 && errMsg.includes('локальном запуске')) {
+                    setStatus({ type: 'error', message: 'Печать по USB доступна только при локальном запуске на ПК с принтером.' })
+                  } else {
+                    setStatus({ type: 'error', message: errMsg })
+                  }
                 }
               } catch (e) {
                 setStatus({ type: 'error', message: 'Сервер недоступен.' })

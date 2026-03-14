@@ -24,11 +24,11 @@ function computeExpiresAt(madeAt, shelfLifeHours) {
  * или ошибку, если продукт не найден. Ищет по названию и по вариантам (aliases).
  * Возвращает каноническое productName из справочника (для этикетки и labelText).
  * @param {{ productName: string, madeAt: Date }} parsed
- * @returns {{ productName: string, madeAt: Date, expiresAt: Date } | { error: string }}
+ * @returns {Promise<{ productName: string, madeAt: Date, expiresAt: Date } | { error: string }>}
  */
-function resolveExpiry(parsed) {
+async function resolveExpiry(parsed) {
   if (parsed.error) return parsed;
-  const entry = getByProductName(parsed.productName);
+  const entry = await getByProductName(parsed.productName);
   if (!entry) {
     return { error: `Продукт «${parsed.productName}» не найден в справочнике сроков` };
   }

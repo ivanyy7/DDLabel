@@ -1,0 +1,13 @@
+{
+  "name": "ddlabel",
+  "private": true,
+  "description": "DDLabel — печать этикеток по голосу",
+  "scripts": {
+    "build": "cd client && npm run build",
+    "dev": "cd client && npm run dev",
+    "server": "cd server && npm start"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
