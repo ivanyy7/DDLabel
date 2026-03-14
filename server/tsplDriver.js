@@ -45,13 +45,13 @@ function buildTsplLabel(payload) {
     'CODEPAGE 866',
     'CLS',
     // Название продукта (верх)
-    `TEXT 20,25,"3",0,1,2,"${name}"`,
+    `TEXT 20,22,"3",0,1,2,"${name}"`,
     // Даты
-    `TEXT 18,80,"3",0,1,2,"${madeDay}.${madeMonth}"`,
-    `TEXT 145,80,"3",0,1,2,"${expDay}.${expMonth}"`,
-    // Время
-    `TEXT 18,135,"1",0,2,2,"${madeHours}.${madeMinutes}"`,
-    `TEXT 145,135,"1",0,2,2,"${expHours}.${expMinutes}"`,
+    `TEXT 18,77,"3",0,1,2,"${madeDay}.${madeMonth}"`,
+    `TEXT 145,77,"3",0,1,2,"${expDay}.${expMonth}"`,
+    // Время (нижний край = 132+24=156, запас ~4 точки от края этикетки)
+    `TEXT 18,132,"1",0,2,2,"${madeHours}.${madeMinutes}"`,
+    `TEXT 145,132,"1",0,2,2,"${expHours}.${expMinutes}"`,
     'PRINT 1',
   ];
 
@@ -89,9 +89,9 @@ function buildTsplLabelSingle(payload) {
     'CLS',
     // Название продукта (верх)
     `TEXT 20,25,"3",0,1,2,"${name}"`,
-    // Дата и время в одну строку: дата слева (x=18), время справа (x=120)
+    // Дата и время: выровнены по нижнему краю (дата h=48, время h=24 при sy=2)
     `TEXT 18,80,"3",0,1,2,"${dateStr}"`,
-    `TEXT 120,80,"1",0,2,2,"${timeStr}"`,
+    `TEXT 120,101,"1",0,2,2,"${timeStr}"`,
     'PRINT 1',
   ];
 

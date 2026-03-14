@@ -950,8 +950,7 @@ function App() {
               placeholder="сыр Россия 10 03 11 10"
               value={phrase}
               onChange={(e) => {
-                const templates = splitTextTemplates(e.target.value)
-                setPhrase(templates.join('\n'))
+                setPhrase(e.target.value)
               }}
               disabled={loading || isVoiceMode}
               style={{ height: phraseHeight }}
