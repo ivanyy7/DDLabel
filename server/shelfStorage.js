@@ -60,8 +60,15 @@ function read() {
     try {
       const { get } = await import('@vercel/blob');
       const result = await get(BLOB_PATH, { access: 'public' });
-      if (!result) return [];
-      const raw = await result.text();
+      if (!result || result.statusCode !== 200 || !result.stream) return [];
+      const reader = result.stream.getReader();
+      const chunks = [];
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        if (value) chunks.push(value);
+      }
+      const raw = Buffer.concat(chunks).toString('utf8');
       const data = JSON.parse(raw);
       return Array.isArray(data) ? data : [];
     } catch (e) {

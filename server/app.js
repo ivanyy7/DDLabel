@@ -262,12 +262,20 @@ app.get('/api/shelf-debug', async (_req, res) => {
     if (typeof blob.get === 'function') {
       info.steps.push('get: start');
       const result = await blob.get('shelf.json', { access: 'public' });
-      info.getResult = result ? 'got response' : 'null';
-      if (result) {
-        const raw = await result.text();
+      info.getResult = result ? { statusCode: result.statusCode, hasStream: !!result.stream } : 'null';
+      if (result && result.statusCode === 200 && result.stream) {
+        const reader = result.stream.getReader();
+        const chunks = [];
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          if (value) chunks.push(value);
+        }
+        const raw = Buffer.concat(chunks).toString('utf8');
         const data = JSON.parse(raw);
         info.getDataLength = Array.isArray(data) ? data.length : 'not array';
         info.getFirstItem = Array.isArray(data) && data[0] ? data[0].productName : null;
+        info.getLastItem = Array.isArray(data) && data.length > 0 ? data[data.length - 1].productName : null;
       }
       info.steps.push('get: done');
     } else {
@@ -333,7 +341,7 @@ app.post('/api/shelf-import', async (req, res) => {
     if (process.env.VERCEL) {
       const { list, del } = await import('@vercel/blob');
       const { blobs } = await list({ limit: 500 });
-      const shelfBlobs = blobs.filter((b) => b.pathname === 'shelf.json' || (b.pathname && b.pathname.endsWith('/shelf.json')));
+      const shelfBlobs = blobs.filter((b) => b.pathname && (b.pathname === 'shelf.json' || b.pathname.startsWith('shelf-') || b.pathname.startsWith('shelf.')));
       if (shelfBlobs.length > 0) {
         await del(shelfBlobs.map((b) => b.url));
       }
