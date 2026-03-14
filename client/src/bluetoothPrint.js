@@ -107,31 +107,35 @@ async function getOrRequestDevice() {
     }
   }
 
-  if (navigator.bluetooth.getDevices) {
+  // #region agent log
+  const gdType = typeof (navigator.bluetooth.getDevices)
+  window._btLog = 'gd:' + gdType
+  _dl('getDevices type check', { type: gdType })
+  // #endregion
+
+  if (gdType === 'function') {
     try {
       const devices = await navigator.bluetooth.getDevices()
       // #region agent log
+      window._btLog = 'gd:' + devices.length + '[' + devices.map(d => d.name).join(',') + ']'
       _dl('getDevices result', { count: devices.length, names: devices.map(d => d.name) })
-      window._btLog = 'getDevices:' + devices.length + ' [' + devices.map(d => d.name).join(',') + ']'
       // #endregion
       for (const d of devices) {
         if (d.name && d.name.startsWith('XP-')) {
-          // Attempt 1: direct gatt.connect() — works on some Chrome versions
           try {
             await d.gatt.connect()
             _cachedDevice = d
             // #region agent log
+            window._btLog += '→ok'
             _dl('reconnected via direct connect', { name: d.name })
-            window._btLog += ' →direct✓'
             // #endregion
             return d
           } catch (e1) {
             // #region agent log
-            _dl('direct connect failed, trying watchAd', { name: d.name, err: e1.message })
-            window._btLog += ' →direct✗(' + e1.message.slice(0, 30) + ')'
+            window._btLog += '→err(' + e1.message.slice(0, 40) + ')'
+            _dl('direct connect failed', { name: d.name, err: e1.message })
             // #endregion
           }
-          // Attempt 2: watchAdvertisements() + connect
           if (d.watchAdvertisements) {
             try {
               const ac = new AbortController()
@@ -143,14 +147,12 @@ async function getOrRequestDevice() {
               await d.gatt.connect()
               _cachedDevice = d
               // #region agent log
-              _dl('reconnected via watchAd', { name: d.name })
-              window._btLog += ' →watchAd✓'
+              window._btLog += '→wAd ok'
               // #endregion
               return d
             } catch (e2) {
               // #region agent log
-              _dl('watchAd reconnect failed', { name: d.name, err: e2.message })
-              window._btLog += ' →watchAd✗(' + e2.message.slice(0, 30) + ')'
+              window._btLog += '→wAd err(' + e2.message.slice(0, 30) + ')'
               // #endregion
               continue
             }
@@ -159,14 +161,10 @@ async function getOrRequestDevice() {
       }
     } catch (e) {
       // #region agent log
+      window._btLog = 'gd ERR:' + e.name + ':' + e.message
       _dl('getDevices error', { err: e.message })
-      window._btLog = 'getDevices ERR:' + e.message
       // #endregion
     }
-  } else {
-    // #region agent log
-    window._btLog = 'getDevices:N/A'
-    // #endregion
   }
 
   const device = await navigator.bluetooth.requestDevice({
