@@ -396,12 +396,16 @@ function App() {
             setStatus({ type: 'ok', message: 'Этикетка отправлена на печать по Bluetooth.' })
             return true
           }
+          clearAutoPrintTimer()
+          setPendingVoiceTemplates([])
           setStatus({ type: 'error', message: bt.error || 'Ошибка печати по Bluetooth.' })
           return false
         } catch (e) {
           // #region agent log
           fetch('http://127.0.0.1:7902/ingest/125efaa0-8f20-4b5f-a685-041b1c8d9b4d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'d04e56'},body:JSON.stringify({sessionId:'d04e56',location:'App.jsx:sendPhraseToPrint',message:'bluetooth catch',data:{name:e?.name,message:e?.message},timestamp:Date.now(),hypothesisId:'H2'})}).catch(()=>{});
           // #endregion
+          clearAutoPrintTimer()
+          setPendingVoiceTemplates([])
           setStatus({ type: 'error', message: e.message || 'Ошибка печати по Bluetooth.' })
           return false
         }
