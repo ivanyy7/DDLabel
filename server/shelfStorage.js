@@ -59,8 +59,8 @@ function read() {
   return (async () => {
     try {
       const { list } = await import('@vercel/blob');
-      const { blobs } = await list({ prefix: BLOB_PATH, limit: 1 });
-      const blob = blobs.find((b) => b.pathname === BLOB_PATH);
+      const { blobs } = await list({ limit: 100 });
+      const blob = blobs.find((b) => b.pathname === BLOB_PATH || (b.pathname && b.pathname.endsWith('/' + BLOB_PATH)));
       if (!blob?.url) return [];
       const res = await fetch(blob.url);
       if (!res.ok) return [];
