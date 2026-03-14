@@ -243,6 +243,49 @@ app.get('/api/health', (_req, res) => {
   res.json({ ok: true, service: 'ddlabel-server' });
 });
 
+app.get('/api/shelf-debug', async (_req, res) => {
+  const info = { isVercel: !!process.env.VERCEL, steps: [] };
+  try {
+    const blob = await import('@vercel/blob');
+    info.sdkVersion = blob.default?.version || 'unknown';
+    info.sdkExports = Object.keys(blob);
+
+    info.steps.push('list: start');
+    const { blobs } = await blob.list({ limit: 100 });
+    info.blobCount = blobs.length;
+    info.blobPathnames = blobs.map((b) => ({ pathname: b.pathname, url: b.url.slice(0, 80) }));
+    info.steps.push('list: done');
+
+    const shelfBlobs = blobs.filter((b) => b.pathname === 'shelf.json' || (b.pathname && b.pathname.endsWith('/shelf.json')));
+    info.shelfBlobCount = shelfBlobs.length;
+
+    if (typeof blob.get === 'function') {
+      info.steps.push('get: start');
+      const result = await blob.get('shelf.json', { access: 'public' });
+      info.getResult = result ? 'got response' : 'null';
+      if (result) {
+        const raw = await result.text();
+        const data = JSON.parse(raw);
+        info.getDataLength = Array.isArray(data) ? data.length : 'not array';
+        info.getFirstItem = Array.isArray(data) && data[0] ? data[0].productName : null;
+      }
+      info.steps.push('get: done');
+    } else {
+      info.steps.push('get: not available');
+    }
+
+    info.steps.push('shelfStorage.read: start');
+    const items = await shelfStorage.getAll();
+    info.storageItemCount = items.length;
+    info.storageItems = items.map((i) => i.productName);
+    info.steps.push('shelfStorage.read: done');
+  } catch (e) {
+    info.error = e.message;
+    info.stack = e.stack?.split('\n').slice(0, 5);
+  }
+  res.json(info);
+});
+
 app.get('/api/shelf', async (req, res) => {
   try {
     const items = await shelfStorage.getAll();
