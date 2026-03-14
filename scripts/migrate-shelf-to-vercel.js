@@ -2,6 +2,9 @@
  * Перенос справочника из локального shelf.json на Vercel API.
  * Запуск: node scripts/migrate-shelf-to-vercel.js
  * URL API задаётся через переменную VERCEL_API_URL (например https://dd-label.vercel.app)
+ *
+ * Использует /api/shelf-import — один запрос со всем массивом,
+ * чтобы избежать гонки при последовательной записи в Vercel Blob.
  */
 
 const fs = require('fs');
@@ -9,10 +12,6 @@ const path = require('path');
 
 const API_URL = (process.env.VERCEL_API_URL || 'https://dd-label.vercel.app').replace(/\/$/, '');
 const SHELF_PATH = path.join(__dirname, '..', 'server', 'data', 'shelf.json');
-
-function sleep(ms) {
-  return new Promise((r) => setTimeout(r, ms));
-}
 
 async function migrate() {
   if (!fs.existsSync(SHELF_PATH)) {
@@ -34,47 +33,32 @@ async function migrate() {
     process.exit(1);
   }
 
-  console.log(`Перенос ${items.length} записей на ${API_URL}/api/shelf`);
+  console.log(`Отправка ${items.length} записей одним запросом на ${API_URL}/api/shelf-import`);
   console.log('---');
 
-  let ok = 0;
-  let fail = 0;
+  try {
+    const res = await fetch(`${API_URL}/api/shelf-import`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(items),
+    });
+    const data = await res.json().catch(() => ({}));
 
-  for (let i = 0; i < items.length; i++) {
-    const item = items[i];
-    const body = {
-      productName: item.productName,
-      value: item.value,
-      unit: item.unit || 'days',
-    };
-    if (item.labelText != null) body.labelText = item.labelText;
-    if (item.aliases && item.aliases.length) body.aliases = item.aliases;
-
-    try {
-      const res = await fetch(`${API_URL}/api/shelf`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      const data = await res.json().catch(() => ({}));
-
-      if (res.ok) {
-        console.log(`[OK] ${i + 1}/${items.length}: ${item.productName}`);
-        ok++;
-      } else {
-        console.error(`[ОШИБКА] ${i + 1}/${items.length}: ${item.productName} — ${data.error || res.status}`);
-        fail++;
-      }
-    } catch (e) {
-      console.error(`[ОШИБКА] ${i + 1}/${items.length}: ${item.productName} — ${e.message}`);
-      fail++;
+    if (res.ok) {
+      console.log(`[OK] Импортировано: ${data.count ?? items.length} записей`);
+      console.log('---');
+      console.log('Готово: успешно, 0 ошибок');
+      process.exit(0);
+    } else {
+      console.error(`[ОШИБКА] ${data.error || res.status}`);
+      console.log('---');
+      console.log('Готово: 0 успешно, 1 ошибка');
+      process.exit(1);
     }
-    await sleep(300);
+  } catch (e) {
+    console.error(`[ОШИБКА] ${e.message}`);
+    process.exit(1);
   }
-
-  console.log('---');
-  console.log(`Готово: ${ok} успешно, ${fail} ошибок`);
-  process.exit(fail > 0 ? 1 : 0);
 }
 
 migrate();

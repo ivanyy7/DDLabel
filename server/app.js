@@ -273,6 +273,27 @@ app.post('/api/shelf', async (req, res) => {
   }
 });
 
+app.post('/api/shelf-import', async (req, res) => {
+  try {
+    const items = req.body;
+    if (!Array.isArray(items) || items.length === 0) {
+      res.status(400).json({ ok: false, error: 'Ожидается непустой массив записей.' });
+      return;
+    }
+    const normalized = items.map((item) => {
+      const entry = { productName: String(item.productName || '').trim(), value: Number(item.value), unit: item.unit === 'days' ? 'days' : 'hours' };
+      if (item.labelText != null && String(item.labelText).trim()) entry.labelText = String(item.labelText).trim();
+      if (Array.isArray(item.aliases) && item.aliases.length) entry.aliases = item.aliases.map((a) => String(a).trim()).filter(Boolean);
+      return entry;
+    }).filter((e) => e.productName && !Number.isNaN(e.value));
+    await shelfStorage.write(normalized);
+    res.status(200).json({ ok: true, message: `Импортировано ${normalized.length} записей.`, count: normalized.length });
+  } catch (e) {
+    console.error('[DDLabel] POST /api/shelf-import:', e.message);
+    res.status(500).json({ ok: false, error: `Ошибка сервера: ${e.message}` });
+  }
+});
+
 app.put('/api/shelf/:productName', async (req, res) => {
   const oldName = decodeURIComponent(req.params.productName || '');
   const body = req.body || {};
