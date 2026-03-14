@@ -492,8 +492,8 @@ function App() {
     if (!normalizedFull) return
 
     // «ок» / «ok» — команда печати, не пишем в поле. Удаляем в любом регистре и раскладке.
-    const hasOk = /(?:^|\s)(ок|ok|oк)(?:\s|$)/i.test(normalizedFull)
-    const withoutOk = normalizedFull.replace(/(?:^|\s)(ок|ok|oк)(?:\s|$)/gi, ' ').replace(/\s+/g, ' ').trim()
+    const hasOk = /(?:^|[\s.,!?])(ок|ok|oк)(?:[\s.,!?]|$)/i.test(normalizedFull)
+    const withoutOk = normalizedFull.replace(/(?:^|[\s.,!?])(ок|ok|oк)(?:[\s.,!?]|$)/gi, ' ').replace(/\s+/g, ' ').trim()
     // Только «ок» — печать с небольшой задержкой, чтобы успеть принять «грязные фрукты» и т.п., если они приходят отдельным результатом
     if (!withoutOk) {
       if (hasOk) {

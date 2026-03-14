@@ -23,6 +23,8 @@ const ALT_WRITE_CHARS = [
 const _dl = (msg, data) => fetch('http://127.0.0.1:7902/ingest/125efaa0-8f20-4b5f-a685-041b1c8d9b4d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'d04e56'},body:JSON.stringify({sessionId:'d04e56',location:'bluetoothPrint.js',message:msg,data,timestamp:Date.now(),hypothesisId:'H7'})}).catch(()=>{});
 // #endregion
 
+let _cachedDevice = null
+
 /**
  * Проверяет, доступен ли Web Bluetooth API.
  */
@@ -30,15 +32,8 @@ export function isBluetoothPrintAvailable() {
   return typeof navigator !== 'undefined' && 'bluetooth' in navigator
 }
 
-/**
- * BLE: максимум ~512 байт за один write (зависит от MTU).
- * Разбиваем на чанки по 200 байт для надёжности.
- */
 const BLE_CHUNK_SIZE = 200
 
-/**
- * Ищет характеристику с записью (writeWithoutResponse или write).
- */
 async function findWriteCharacteristic(server) {
   const allServices = [PRINTER_SERVICE, ...ALT_SERVICES]
 
@@ -62,7 +57,7 @@ async function findWriteCharacteristic(server) {
         const ch = await service.getCharacteristic(charUuid)
         if (ch.properties.writeWithoutResponse || ch.properties.write) {
           // #region agent log
-          _dl('found write char', { svcUuid, charUuid, woResp: ch.properties.writeWithoutResponse, w: ch.properties.write })
+          _dl('found write char', { svcUuid, charUuid })
           // #endregion
           return ch
         }
@@ -76,7 +71,7 @@ async function findWriteCharacteristic(server) {
       for (const ch of chars) {
         if (ch.properties.writeWithoutResponse || ch.properties.write) {
           // #region agent log
-          _dl('found write char (scan)', { svcUuid, charUuid: ch.uuid, woResp: ch.properties.writeWithoutResponse, w: ch.properties.write })
+          _dl('found write char (scan)', { svcUuid, charUuid: ch.uuid })
           // #endregion
           return ch
         }
@@ -90,13 +85,67 @@ async function findWriteCharacteristic(server) {
 }
 
 /**
+ * Получает BLE-устройство: из кеша, через getDevices(), или через requestDevice().
+ * requestDevice() требует user gesture; getDevices() и reconnect — нет.
+ */
+async function getOrRequestDevice() {
+  if (_cachedDevice) {
+    try {
+      if (_cachedDevice.gatt.connected) {
+        // #region agent log
+        _dl('using cached device (connected)', { name: _cachedDevice.name })
+        // #endregion
+        return _cachedDevice
+      }
+      await _cachedDevice.gatt.connect()
+      // #region agent log
+      _dl('reconnected cached device', { name: _cachedDevice.name })
+      // #endregion
+      return _cachedDevice
+    } catch {
+      _cachedDevice = null
+    }
+  }
+
+  if (navigator.bluetooth.getDevices) {
+    try {
+      const devices = await navigator.bluetooth.getDevices()
+      for (const d of devices) {
+        if (d.name && d.name.includes('XP-365B')) {
+          try {
+            await d.gatt.connect()
+            _cachedDevice = d
+            // #region agent log
+            _dl('reconnected via getDevices', { name: d.name })
+            // #endregion
+            return d
+          } catch {
+            continue
+          }
+        }
+      }
+    } catch {
+      // getDevices() не поддерживается или ошибка
+    }
+  }
+
+  const device = await navigator.bluetooth.requestDevice({
+    filters: [{ namePrefix: 'XP-' }],
+    optionalServices: [PRINTER_SERVICE, ...ALT_SERVICES],
+  })
+  _cachedDevice = device
+  // #region agent log
+  _dl('device selected via picker', { name: device.name })
+  // #endregion
+  return device
+}
+
+/**
  * Отправляет TSPL (base64) на принтер по BLE.
- * @param {string} tsplBase64 — TSPL в кодировке CP866, закодированный в base64
- * @returns {Promise<{ ok: boolean; error?: string }>}
  */
 export async function sendTsplViaBluetooth(tsplBase64) {
   // #region agent log
-  _dl('sendTsplViaBluetooth called', { base64Len: tsplBase64?.length, available: isBluetoothPrintAvailable() })
+  _dl('sendTsplViaBluetooth called', { base64Len: tsplBase64?.length, hasCached: !!_cachedDevice })
   // #endregion
 
   if (!isBluetoothPrintAvailable()) {
@@ -108,41 +157,20 @@ export async function sendTsplViaBluetooth(tsplBase64) {
 
   let device
   try {
-    device = await navigator.bluetooth.requestDevice({
-      filters: [{ name: 'XP-365B' }],
-      optionalServices: [PRINTER_SERVICE, ...ALT_SERVICES],
-    })
-    // #region agent log
-    _dl('device selected', { name: device.name, id: device.id })
-    // #endregion
+    device = await getOrRequestDevice()
   } catch (err) {
-    if (err.name === 'NotFoundError') {
-      // Попробуем acceptAllDevices
-      try {
-        device = await navigator.bluetooth.requestDevice({
-          acceptAllDevices: true,
-          optionalServices: [PRINTER_SERVICE, ...ALT_SERVICES],
-        })
-        // #region agent log
-        _dl('device selected (all)', { name: device.name, id: device.id })
-        // #endregion
-      } catch (err2) {
-        // #region agent log
-        _dl('requestDevice error (all)', { name: err2.name, message: err2.message })
-        // #endregion
-        return { ok: false, error: 'Принтер не выбран.' }
-      }
-    } else {
-      // #region agent log
-      _dl('requestDevice error', { name: err.name, message: err.message })
-      // #endregion
-      return { ok: false, error: `Bluetooth [${err.name}]: ${err.message}` }
+    // #region agent log
+    _dl('getOrRequestDevice error', { name: err.name, message: err.message })
+    // #endregion
+    if (err.name === 'SecurityError') {
+      return { ok: false, error: 'Первое подключение к принтеру — нажмите «на Печать» вручную (нужен клик).' }
     }
+    return { ok: false, error: `Bluetooth [${err.name}]: ${err.message}` }
   }
 
   let server
   try {
-    server = await device.gatt.connect()
+    server = device.gatt.connected ? device.gatt : await device.gatt.connect()
     // #region agent log
     _dl('GATT connected', { connected: server.connected })
     // #endregion
@@ -150,6 +178,7 @@ export async function sendTsplViaBluetooth(tsplBase64) {
     // #region agent log
     _dl('GATT connect error', { name: err.name, message: err.message })
     // #endregion
+    _cachedDevice = null
     return { ok: false, error: `Bluetooth connect [${err.name}]: ${err.message}` }
   }
 
@@ -159,13 +188,12 @@ export async function sendTsplViaBluetooth(tsplBase64) {
       // #region agent log
       _dl('no write characteristic found', {})
       // #endregion
-      server.disconnect()
-      return { ok: false, error: 'Не удалось найти характеристику записи на принтере. Возможно, принтер не поддерживает BLE-печать.' }
+      return { ok: false, error: 'Не найдена характеристика записи на принтере.' }
     }
 
     const binary = Uint8Array.from(atob(tsplBase64), (c) => c.charCodeAt(0))
     // #region agent log
-    _dl('binary ready', { byteLen: binary.length, chunks: Math.ceil(binary.length / BLE_CHUNK_SIZE) })
+    _dl('binary ready', { byteLen: binary.length })
     // #endregion
 
     for (let offset = 0; offset < binary.length; offset += BLE_CHUNK_SIZE) {
@@ -186,7 +214,5 @@ export async function sendTsplViaBluetooth(tsplBase64) {
     _dl('write error', { name: err.name, message: err.message })
     // #endregion
     return { ok: false, error: `Bluetooth write [${err.name}]: ${err.message}` }
-  } finally {
-    try { server.disconnect() } catch { /* ignore */ }
   }
 }
