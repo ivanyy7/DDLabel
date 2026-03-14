@@ -94,6 +94,7 @@ function App() {
   const okPrintTimerRef = useRef(null)
   const pendingVoiceTemplatesRef = useRef([])
   const voiceAccumulatedRef = useRef([]) // накопленные шаблоны между сессиями распознавания
+  const voiceCrossSessionRef = useRef([]) // транскрипты между перезапусками recognition (пауза → onend → restart)
 
   // Справочник сроков
   const [shelfItems, setShelfItems] = useState([])
@@ -476,6 +477,7 @@ function App() {
         setPhrase('')
         setParsedResult(null)
         voiceAccumulatedRef.current = []
+        voiceCrossSessionRef.current = []
       }
     })()
   }
@@ -586,6 +588,7 @@ function App() {
       fetch('http://127.0.0.1:7902/ingest/125efaa0-8f20-4b5f-a685-041b1c8d9b4d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'d04e56'},body:JSON.stringify({sessionId:'d04e56',location:'App.jsx:hasOk-triggerPrint',message:'ok-triggered-print',data:{updatedLen:updated.length,updated},timestamp:Date.now(),hypothesisId:'H3'})}).catch(()=>{});
       // #endregion
       voiceAccumulatedRef.current = []
+      voiceCrossSessionRef.current = []
       triggerVoiceBatchPrint(updated)
       setPendingVoiceTemplates([])
       setPhrase(updated.join('\n'))
@@ -611,11 +614,15 @@ function App() {
     recognition.interimResults = false
     recognitionRef.current = recognition
 
+    voiceCrossSessionRef.current.push('')
+
     recognition.onresult = (event) => {
-      const transcript = Array.from(event.results)
+      const sessionTranscript = Array.from(event.results)
         .map((r) => r[0]?.transcript || '')
         .join(' ')
-      addVoiceTemplatesFromTranscript(transcript)
+      voiceCrossSessionRef.current[voiceCrossSessionRef.current.length - 1] = sessionTranscript
+      const fullTranscript = voiceCrossSessionRef.current.filter(Boolean).join(' ')
+      addVoiceTemplatesFromTranscript(fullTranscript)
     }
 
     recognition.onerror = (event) => {
@@ -652,6 +659,7 @@ function App() {
         return
       }
       voiceErrorRef.current = false
+      voiceCrossSessionRef.current = []
       setIsVoiceMode(true)
       voiceModeRef.current = true
       startVoiceSession()
@@ -661,6 +669,7 @@ function App() {
       voiceErrorRef.current = false
       clearAutoPrintTimer()
       setPendingVoiceTemplates([])
+      voiceCrossSessionRef.current = []
       setIsListening(false)
       if (recognitionRef.current) {
         try {
@@ -1748,7 +1757,7 @@ function App() {
         )}
       </div>
       {/* #region agent log */}
-      {_dlDebug && <pre style={{position:'fixed',bottom:0,left:0,right:0,background:'#ff0',color:'#000',fontSize:'11px',padding:'4px 8px',zIndex:9999,margin:0,whiteSpace:'pre-wrap',wordBreak:'break-all'}}>{_dlDebug}</pre>}
+      {(_dlDebug || window._btLog) && <pre style={{position:'fixed',bottom:0,left:0,right:0,background:'#ff0',color:'#000',fontSize:'11px',padding:'4px 8px',zIndex:9999,margin:0,whiteSpace:'pre-wrap',wordBreak:'break-all'}}>{_dlDebug}{window._btLog ? '\nBT: ' + window._btLog : ''}</pre>}
       {/* #endregion */}
     </div>
   )
