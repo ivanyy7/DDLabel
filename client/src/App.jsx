@@ -10,7 +10,6 @@ const LABEL_LAST_TEMPLATE_KEY = 'ddlabel_last_template'
 const THEME_STORAGE_KEY = 'ddlabel_theme'
 const SHELF_LOCAL_KEY = 'ddlabel_shelf_local'
 const WORK_OFFLINE_KEY = 'ddlabel_work_offline'
-const PHRASE_HEIGHT_KEY = 'ddlabel_phrase_height'
 const DEBUG_STRIP_KEY = 'ddlabel_show_debug_strip'
 
 function getLocalShelf() {
@@ -105,26 +104,6 @@ function App() {
   const [status, setStatus] = useState(null)
   const [loading, setLoading] = useState(false)
   const [phrase, setPhrase] = useState('')
-  const [phraseHeight, setPhraseHeight] = useState(() => {
-    try {
-      const v = localStorage.getItem(PHRASE_HEIGHT_KEY)
-      if (v != null) {
-        const n = parseInt(v, 10)
-        if (Number.isFinite(n) && n >= 36 && n <= 400) return n
-      }
-    } catch {
-      /* ignore */
-    }
-    return 36
-  })
-  const phraseResizeRef = useRef(null)
-  useEffect(() => {
-    try {
-      localStorage.setItem(PHRASE_HEIGHT_KEY, String(phraseHeight))
-    } catch {
-      /* ignore */
-    }
-  }, [phraseHeight])
   const [parsedResult, setParsedResult] = useState(null)
   const [isListening, setIsListening] = useState(false)
   const [isVoiceMode, setIsVoiceMode] = useState(false)
@@ -1250,46 +1229,6 @@ function App() {
                 setPhrase(e.target.value)
               }}
               disabled={loading || isVoiceMode}
-              style={{ height: phraseHeight }}
-            />
-            <div
-              className="phrase-resize-handle"
-              onMouseDown={(e) => {
-                e.preventDefault()
-                phraseResizeRef.current = { startY: e.clientY, startHeight: phraseHeight }
-                const onMove = (ev) => {
-                  if (!phraseResizeRef.current) return
-                  const dy = ev.clientY - phraseResizeRef.current.startY
-                  setPhraseHeight((h) => Math.min(400, Math.max(36, phraseResizeRef.current.startHeight + dy)))
-                }
-                const onUp = () => {
-                  phraseResizeRef.current = null
-                  document.removeEventListener('mousemove', onMove)
-                  document.removeEventListener('mouseup', onUp)
-                }
-                document.addEventListener('mousemove', onMove)
-                document.addEventListener('mouseup', onUp)
-              }}
-              onTouchStart={(e) => {
-                e.preventDefault()
-                const touch = e.touches[0]
-                phraseResizeRef.current = { startY: touch.clientY, startHeight: phraseHeight }
-                const onMove = (ev) => {
-                  if (!phraseResizeRef.current || !ev.touches.length) return
-                  ev.preventDefault()
-                  const t = ev.touches[0]
-                  const dy = t.clientY - phraseResizeRef.current.startY
-                  setPhraseHeight(() => Math.min(400, Math.max(36, phraseResizeRef.current.startHeight + dy)))
-                }
-                const onUp = () => {
-                  phraseResizeRef.current = null
-                  document.removeEventListener('touchmove', onMove)
-                  document.removeEventListener('touchend', onUp)
-                }
-                document.addEventListener('touchmove', onMove, { passive: false })
-                document.addEventListener('touchend', onUp)
-              }}
-              title="Потяните для изменения высоты"
             />
           </div>
           <button
