@@ -523,6 +523,10 @@ html[data-theme="dark"] .card .mode-toggle-btn.mode-toggle-active {
   flex-direction: column;
 }
 
+.phrase-input-wrap--full {
+  flex: 1 1 auto;
+}
+
 .phrase-input-main {
   width: 100%;
   max-width: 100%;

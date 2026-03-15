@@ -11,6 +11,7 @@ const THEME_STORAGE_KEY = 'ddlabel_theme'
 const SHELF_LOCAL_KEY = 'ddlabel_shelf_local'
 const WORK_OFFLINE_KEY = 'ddlabel_work_offline'
 const DEBUG_STRIP_KEY = 'ddlabel_show_debug_strip'
+const TEXT_RECOGNITION_KEY = 'ddlabel_text_recognition'
 
 function getLocalShelf() {
   try {
@@ -198,6 +199,15 @@ function App() {
     }
   })
 
+  // Режим «Распознавание текста»: при Вкл — кнопка «Р» справа от поля, при Выкл — поле на всю ширину
+  const [showParseButton, setShowParseButton] = useState(() => {
+    try {
+      return localStorage.getItem(TEXT_RECOGNITION_KEY) === 'true'
+    } catch {
+      return false
+    }
+  })
+
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
     try {
@@ -214,6 +224,14 @@ function App() {
       /* ignore */
     }
   }, [showDebugStrip])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(TEXT_RECOGNITION_KEY, showParseButton ? 'true' : 'false')
+    } catch {
+      /* ignore */
+    }
+  }, [showParseButton])
 
   useEffect(() => {
     try {
@@ -1220,7 +1238,7 @@ function App() {
           </button>
         </div>
         <div className="phrase-row">
-          <div className="phrase-input-wrap">
+          <div className={`phrase-input-wrap${!showParseButton ? ' phrase-input-wrap--full' : ''}`}>
             <textarea
               className="phrase-input phrase-input-main"
               placeholder="сыр Россия 10 03 11 10"
@@ -1231,15 +1249,17 @@ function App() {
               disabled={loading || isVoiceMode}
             />
           </div>
-          <button
-            type="button"
-            className="parse-btn-small"
-            onClick={handleParseOnly}
-            disabled={loading || isVoiceMode}
-            title="Разобрать"
-          >
-            Р
-          </button>
+          {showParseButton && (
+            <button
+              type="button"
+              className="parse-btn-small"
+              onClick={handleParseOnly}
+              disabled={loading || isVoiceMode}
+              title="Разобрать"
+            >
+              Р
+            </button>
+          )}
         </div>
         {parsedResult && (
           <p className="parsed-info">
@@ -1397,6 +1417,30 @@ function App() {
                 type="button"
                 className={`theme-toggle-btn ${showDebugStrip ? 'theme-toggle-active' : ''}`}
                 onClick={() => setShowDebugStrip(true)}
+              >
+                Вкл
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <section className="card settings-print-modes">
+          <h2 className="card-title">Распознавание текста</h2>
+          <p className="card-desc">При включении справа от поля ввода появляется кнопка «Разобрать» (Р) для отладки распознавания фразы. При выключении поле растягивается на всю ширину.</p>
+          <div className="print-mode-toggle-row">
+            <span className="print-mode-toggle-label">Режим распознавания</span>
+            <div className="theme-toggle">
+              <button
+                type="button"
+                className={`theme-toggle-btn ${!showParseButton ? 'theme-toggle-active' : ''}`}
+                onClick={() => setShowParseButton(false)}
+              >
+                Выкл
+              </button>
+              <button
+                type="button"
+                className={`theme-toggle-btn ${showParseButton ? 'theme-toggle-active' : ''}`}
+                onClick={() => setShowParseButton(true)}
               >
                 Вкл
               </button>
