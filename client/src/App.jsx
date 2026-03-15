@@ -585,13 +585,20 @@ function App() {
     // #endregion
     ;(async () => {
       let allOk = true
+      const printed = []
       for (const { phrase, count } of resolved) {
         for (let i = 0; i < count; i++) {
           const ok = await sendPhraseToPrint(phrase)
+          if (ok) printed.push(phrase)
           if (!ok) allOk = false
         }
       }
       if (allOk) {
+        setPhrase('')
+        setParsedResult(null)
+        voiceAccumulatedRef.current = []
+        voiceCrossSessionRef.current = []
+      } else if (printed.length) {
         setPhrase('')
         setParsedResult(null)
         voiceAccumulatedRef.current = []
@@ -621,12 +628,17 @@ function App() {
     const okRe = /(?:^|[\s.,!?])(окей|ок|ok|oк|okay)(?:[\s.,!?]|$)/i
     const hasOk = okRe.test(normalizedFull)
     const withoutOk = normalizedFull.replace(new RegExp(okRe.source, 'gi'), ' ').replace(/\s+/g, ' ').trim()
+    // Если пришла полная фраза с «ок» — отменяем отложенную печать по «только ок», чтобы не напечатать дважды
+    if (hasOk && withoutOk && okPrintTimerRef.current) {
+      clearTimeout(okPrintTimerRef.current)
+      okPrintTimerRef.current = null
+    }
     // #region agent log
     const _dlTail = normalizedFull.length > 30 ? '…' + normalizedFull.slice(-30) : normalizedFull
     _setDlDebug(`[D] "${_dlTail}" ok=${hasOk} wo="${withoutOk.slice(-15)}"`)
     fetch('http://127.0.0.1:7902/ingest/125efaa0-8f20-4b5f-a685-041b1c8d9b4d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'d04e56'},body:JSON.stringify({sessionId:'d04e56',location:'App.jsx:addVoice',message:'hasOk-check',data:{normalizedFull,hasOk,withoutOk},timestamp:Date.now(),hypothesisId:'H1-H5'})}).catch(()=>{});
     // #endregion
-    // Только «ок» — печать с небольшой задержкой, чтобы успеть принять «грязные фрукты» и т.п., если они приходят отдельным результатом
+    // Только «ок» — печать с задержкой; берём pending или накопленное, чтобы «ок» не терялось при быстром приходе
     if (!withoutOk) {
       if (hasOk) {
         // #region agent log
@@ -634,12 +646,16 @@ function App() {
         fetch('http://127.0.0.1:7902/ingest/125efaa0-8f20-4b5f-a685-041b1c8d9b4d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'d04e56'},body:JSON.stringify({sessionId:'d04e56',location:'App.jsx:onlyOk',message:'only-ok-branch',data:{pendingLen:pendingVoiceTemplatesRef.current.length},timestamp:Date.now(),hypothesisId:'H4'})}).catch(()=>{});
         // #endregion
         if (okPrintTimerRef.current) clearTimeout(okPrintTimerRef.current)
+        const pending = pendingVoiceTemplatesRef.current
+        const accumulated = voiceAccumulatedRef.current
+        const toPrint = (pending.length ? pending : accumulated).filter(Boolean)
         okPrintTimerRef.current = setTimeout(() => {
           okPrintTimerRef.current = null
-          const toPrint = pendingVoiceTemplatesRef.current
           if (toPrint.length) {
             triggerVoiceBatchPrint(toPrint)
             setPendingVoiceTemplates([])
+            voiceAccumulatedRef.current = []
+            voiceCrossSessionRef.current = []
           }
         }, 450)
       }
@@ -656,26 +672,27 @@ function App() {
     // Слова-числительные и «штук» — не считаются началом нового шаблона
     const quantityWords = /^(два|две|три|четыре|пять|шесть|семь|восемь|девять|десять|одиннадцать|двенадцать|тринадцать|четырнадцать|пятнадцать|шестнадцать|семнадцать|восемнадцать|девятнадцать|двадцать|тридцать|сорок|пятьдесят|штук|штуки|штука|штуке)\b/i
 
-    const parseToSegments = (text) =>
-      text
-        .split(/\s+и\s+/i)
-        .flatMap((s) => {
-          const normalized = normalizePhrase(s.trim())
-          if (!normalized) return []
-          const parts = normalized.split(/(?<=\d{1,2}\s+\d{1,2}\s+\d{1,2}\s+\d{1,2})\s+(?=[а-яёa-z])/i)
-          // Склеиваем обратно фрагменты, начинающиеся с числительных/«штук»
-          const merged = []
-          for (const p of parts) {
-            const clean = normalizePhrase(p.trim())
-            if (!clean) continue
-            if (merged.length && quantityWords.test(clean)) {
-              merged[merged.length - 1] += ' ' + clean
-            } else {
-              merged.push(clean)
-            }
+    // Разбиваем по «и» только когда слева полный шаблон (заканчивается на ДД ММ ЧЧ ММ), чтобы не резать «сыр Россия и сыр Пармезан»
+    const parseToSegments = (text) => {
+      const normalized = normalizePhrase(text)
+      if (!normalized) return []
+      const reCompleteAnd = /(?<=\d{1,2}\s+\d{1,2}\s+\d{1,2}\s+\d{1,2})\s+и\s+/i
+      const rawSegments = normalized.split(reCompleteAnd).map((s) => normalizePhrase(s.trim())).filter(Boolean)
+      return rawSegments.flatMap((s) => {
+        const parts = s.split(/(?<=\d{1,2}\s+\d{1,2}\s+\d{1,2}\s+\d{1,2})\s+(?=[а-яёa-z])/i)
+        const merged = []
+        for (const p of parts) {
+          const clean = normalizePhrase(p.trim())
+          if (!clean) continue
+          if (merged.length && quantityWords.test(clean)) {
+            merged[merged.length - 1] += ' ' + clean
+          } else {
+            merged.push(clean)
           }
-          return merged
-        })
+        }
+        return merged
+      })
+    }
 
     const newSegments = parseToSegments(withoutOk)
     if (!newSegments.length) return
@@ -712,13 +729,16 @@ function App() {
     // #endregion
 
     if (hasOk) {
+      // Печатаем только полные шаблоны (есть 4 числа: день месяц час минута), чтобы не слать обрывки вроде «сыр Пармезан 03 10»
+      const hasCompleteTemplate = (s) => (/\d{1,2}\s+\d{1,2}\s+\d{1,2}\s+\d{1,2}/.test(normalizePhrase(s || '')))
+      const toPrint = updated.filter(hasCompleteTemplate)
       // #region agent log
       _setDlDebug(prev => prev + ' → PRINT!')
-      fetch('http://127.0.0.1:7902/ingest/125efaa0-8f20-4b5f-a685-041b1c8d9b4d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'d04e56'},body:JSON.stringify({sessionId:'d04e56',location:'App.jsx:hasOk-triggerPrint',message:'ok-triggered-print',data:{updatedLen:updated.length,updated},timestamp:Date.now(),hypothesisId:'H3'})}).catch(()=>{});
+      fetch('http://127.0.0.1:7902/ingest/125efaa0-8f20-4b5f-a685-041b1c8d9b4d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'d04e56'},body:JSON.stringify({sessionId:'d04e56',location:'App.jsx:hasOk-triggerPrint',message:'ok-triggered-print',data:{updatedLen:updated.length,toPrintLen:toPrint.length,updated,toPrint},timestamp:Date.now(),hypothesisId:'H3'})}).catch(()=>{});
       // #endregion
       voiceAccumulatedRef.current = []
       voiceCrossSessionRef.current = []
-      triggerVoiceBatchPrint(updated)
+      triggerVoiceBatchPrint(toPrint.length ? toPrint : updated)
       setPendingVoiceTemplates([])
       setPhrase(updated.join('\n'))
       return
