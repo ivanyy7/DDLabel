@@ -36,6 +36,10 @@
     max-width: 100% !important;
     min-width: 0;
   }
+  .app-tabs-wrap {
+    margin-left: 25vw;
+    padding-left: 0;
+  }
 }
 
 #root {
