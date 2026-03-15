@@ -42,7 +42,9 @@
     padding-right: 0;
   }
   .app-tabs {
-    padding-left: 25vw;
+    padding-left: 40vw;
+    padding-right: 0;
+    gap: 0.25rem;
     box-sizing: border-box;
     width: 100%;
     justify-content: flex-end;
