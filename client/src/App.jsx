@@ -208,14 +208,6 @@ function App() {
     }
   })
 
-  // #region agent log
-  useEffect(() => {
-    const w = typeof window !== 'undefined' ? window.innerWidth : 0
-    const rootFs = typeof document !== 'undefined' && document.documentElement ? getComputedStyle(document.documentElement).fontSize : ''
-    fetch('http://127.0.0.1:7902/ingest/125efaa0-8f20-4b5f-a685-041b1c8d9b4d', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '2777d5' }, body: JSON.stringify({ sessionId: '2777d5', location: 'App.jsx:viewport', message: 'mount', data: { innerWidth: w, rootFontSize: rootFs }, timestamp: Date.now(), hypothesisId: 'H1' }) }).catch(() => {})
-  }, [])
-  // #endregion
-
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
     try {
