@@ -405,7 +405,8 @@ html[data-theme="dark"] .card strong {
   background-color: #1a1a1a;
 }
 
-html[data-theme="light"] .card button {
+html[data-theme="light"] .card button,
+html[data-theme="light"] .phrase-buttons-grid button {
   color: #fff !important;
   background-color: #1a1a1a !important;
 }
