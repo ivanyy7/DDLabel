@@ -10,6 +10,7 @@ const LABEL_LAST_TEMPLATE_KEY = 'ddlabel_last_template'
 const THEME_STORAGE_KEY = 'ddlabel_theme'
 const SHELF_LOCAL_KEY = 'ddlabel_shelf_local'
 const WORK_OFFLINE_KEY = 'ddlabel_work_offline'
+const PHRASE_HEIGHT_KEY = 'ddlabel_phrase_height'
 
 function getLocalShelf() {
   try {
@@ -103,8 +104,26 @@ function App() {
   const [status, setStatus] = useState(null)
   const [loading, setLoading] = useState(false)
   const [phrase, setPhrase] = useState('')
-  const [phraseHeight, setPhraseHeight] = useState(36)
+  const [phraseHeight, setPhraseHeight] = useState(() => {
+    try {
+      const v = localStorage.getItem(PHRASE_HEIGHT_KEY)
+      if (v != null) {
+        const n = parseInt(v, 10)
+        if (Number.isFinite(n) && n >= 36 && n <= 400) return n
+      }
+    } catch {
+      /* ignore */
+    }
+    return 36
+  })
   const phraseResizeRef = useRef(null)
+  useEffect(() => {
+    try {
+      localStorage.setItem(PHRASE_HEIGHT_KEY, String(phraseHeight))
+    } catch {
+      /* ignore */
+    }
+  }, [phraseHeight])
   const [parsedResult, setParsedResult] = useState(null)
   const [isListening, setIsListening] = useState(false)
   const [isVoiceMode, setIsVoiceMode] = useState(false)
@@ -134,9 +153,6 @@ function App() {
   const [shelfListOpen, setShelfListOpen] = useState(false)
   const [aliasesModalItem, setAliasesModalItem] = useState(null)
   const [aliasesModalValue, setAliasesModalValue] = useState('')
-  // #region agent log
-  const [_dlDebug, _setDlDebug] = useState('')
-  // #endregion
 
   // Настройки превью этикетки и шаблоны
   const [selectedElement, setSelectedElement] = useState('title')
@@ -455,32 +471,20 @@ function App() {
         return true
       }
       const errMsg = data.message || data.error || `Ошибка ${res.status}`
-      // #region agent log
-      fetch('http://127.0.0.1:7902/ingest/125efaa0-8f20-4b5f-a685-041b1c8d9b4d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'d04e56'},body:JSON.stringify({sessionId:'d04e56',location:'App.jsx:sendPhraseToPrint',message:'503 branch check',data:{status:res.status,errMsg,btAvail:isBluetoothPrintAvailable(),includes:errMsg.includes('локальном запуске')},timestamp:Date.now(),hypothesisId:'H2'})}).catch(()=>{});
-      // #endregion
       if (res.status === 503 && errMsg.includes('локальном запуске') && isBluetoothPrintAvailable()) {
         setStatus({ type: 'info', message: 'Печать по Bluetooth… Выберите принтер.' })
         try {
-          // #region agent log
-          const _t0 = Date.now();
-          // #endregion
           const tsplRes = await fetch(`${API_BASE}/api/print-tspl`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ phrase: trimmed, singleMode: currentMode === 'single' }),
           })
           const tsplData = await tsplRes.json().catch(() => ({}))
-          // #region agent log
-          fetch('http://127.0.0.1:7902/ingest/125efaa0-8f20-4b5f-a685-041b1c8d9b4d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'d04e56'},body:JSON.stringify({sessionId:'d04e56',location:'App.jsx:sendPhraseToPrint',message:'print-tspl response',data:{ok:tsplRes.ok,status:tsplRes.status,hasBase64:!!tsplData.tsplBase64,base64Len:tsplData.tsplBase64?.length,elapsed:Date.now()-_t0},timestamp:Date.now(),hypothesisId:'H4_H5'})}).catch(()=>{});
-          // #endregion
           if (!tsplRes.ok || !tsplData.tsplBase64) {
             setStatus({ type: 'error', message: tsplData.error || 'Не удалось получить данные для печати.' })
             return false
           }
           const bt = await sendTsplViaBluetooth(tsplData.tsplBase64)
-          // #region agent log
-          fetch('http://127.0.0.1:7902/ingest/125efaa0-8f20-4b5f-a685-041b1c8d9b4d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'d04e56'},body:JSON.stringify({sessionId:'d04e56',location:'App.jsx:sendPhraseToPrint',message:'bluetooth result',data:{btOk:bt.ok,btError:bt.error,totalElapsed:Date.now()-_t0},timestamp:Date.now(),hypothesisId:'H1_H2_H3'})}).catch(()=>{});
-          // #endregion
           if (bt.ok) {
             setStatus({ type: 'ok', message: 'Этикетка отправлена на печать по Bluetooth.' })
             return true
@@ -490,9 +494,6 @@ function App() {
           setStatus({ type: 'error', message: bt.error || 'Ошибка печати по Bluetooth.' })
           return false
         } catch (e) {
-          // #region agent log
-          fetch('http://127.0.0.1:7902/ingest/125efaa0-8f20-4b5f-a685-041b1c8d9b4d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'d04e56'},body:JSON.stringify({sessionId:'d04e56',location:'App.jsx:sendPhraseToPrint',message:'bluetooth catch',data:{name:e?.name,message:e?.message},timestamp:Date.now(),hypothesisId:'H2'})}).catch(()=>{});
-          // #endregion
           clearAutoPrintTimer()
           setPendingVoiceTemplates([])
           setStatus({ type: 'error', message: e.message || 'Ошибка печати по Bluetooth.' })
@@ -580,9 +581,6 @@ function App() {
     clearAutoPrintTimer()
     setPendingVoiceTemplates([])
     const resolved = resolveTemplatesWithQuantity(list)
-    // #region agent log
-    fetch('http://127.0.0.1:7902/ingest/125efaa0-8f20-4b5f-a685-041b1c8d9b4d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'2777d5'},body:JSON.stringify({sessionId:'2777d5',location:'App.jsx:triggerVoiceBatchPrint',message:'batch-print',data:{list,resolved:resolved.map(r=>({phrase:r.phrase?.slice(0,40),count:r.count}))},timestamp:Date.now(),hypothesisId:'H1'})}).catch(()=>{});
-    // #endregion
     ;(async () => {
       let allOk = true
       const printed = []
@@ -610,9 +608,6 @@ function App() {
   const scheduleAutoPrint = (templates) => {
     if (!templates.length) return
     clearAutoPrintTimer()
-    // #region agent log
-    fetch('http://127.0.0.1:7902/ingest/125efaa0-8f20-4b5f-a685-041b1c8d9b4d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'2777d5'},body:JSON.stringify({sessionId:'2777d5',location:'App.jsx:scheduleAutoPrint',message:'schedule-7s',data:{templates:templates.map(t=>t?.slice(0,50)),len:templates.length},timestamp:Date.now(),hypothesisId:'H3'})}).catch(()=>{});
-    // #endregion
     autoPrintTimerRef.current = setTimeout(() => {
       triggerVoiceBatchPrint(templates)
     }, 7000)
@@ -633,18 +628,9 @@ function App() {
       clearTimeout(okPrintTimerRef.current)
       okPrintTimerRef.current = null
     }
-    // #region agent log
-    const _dlTail = normalizedFull.length > 30 ? '…' + normalizedFull.slice(-30) : normalizedFull
-    _setDlDebug(`[D] "${_dlTail}" ok=${hasOk} wo="${withoutOk.slice(-15)}"`)
-    fetch('http://127.0.0.1:7902/ingest/125efaa0-8f20-4b5f-a685-041b1c8d9b4d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'d04e56'},body:JSON.stringify({sessionId:'d04e56',location:'App.jsx:addVoice',message:'hasOk-check',data:{normalizedFull,hasOk,withoutOk},timestamp:Date.now(),hypothesisId:'H1-H5'})}).catch(()=>{});
-    // #endregion
     // Только «ок» — печать с задержкой; берём pending или накопленное, чтобы «ок» не терялось при быстром приходе
     if (!withoutOk) {
       if (hasOk) {
-        // #region agent log
-        _setDlDebug(prev => prev + ' → onlyOk(pending=' + pendingVoiceTemplatesRef.current.length + ')')
-        fetch('http://127.0.0.1:7902/ingest/125efaa0-8f20-4b5f-a685-041b1c8d9b4d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'d04e56'},body:JSON.stringify({sessionId:'d04e56',location:'App.jsx:onlyOk',message:'only-ok-branch',data:{pendingLen:pendingVoiceTemplatesRef.current.length},timestamp:Date.now(),hypothesisId:'H4'})}).catch(()=>{});
-        // #endregion
         if (okPrintTimerRef.current) clearTimeout(okPrintTimerRef.current)
         const pending = pendingVoiceTemplatesRef.current
         const accumulated = voiceAccumulatedRef.current
@@ -697,10 +683,6 @@ function App() {
     const newSegments = parseToSegments(withoutOk)
     if (!newSegments.length) return
 
-    // #region agent log
-    fetch('http://127.0.0.1:7902/ingest/125efaa0-8f20-4b5f-a685-041b1c8d9b4d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'2777d5'},body:JSON.stringify({sessionId:'2777d5',location:'App.jsx:addVoice-segments',message:'segments',data:{normalizedFull:normalizedFull?.slice(0,80),withoutOk:withoutOk?.slice(0,80),newSegments,hasOk},timestamp:Date.now(),hypothesisId:'H2-H5'})}).catch(()=>{});
-    // #endregion
-
     // Новая сессия распознавания даёт только новый фрагмент — дополняем. Иначе заменяем полным транскриптом.
     const prevJoined = voiceAccumulatedRef.current.join(' ')
     const isNewSession = prevJoined && !withoutOk.startsWith(prevJoined) && withoutOk !== prevJoined
@@ -724,18 +706,10 @@ function App() {
     }
     voiceAccumulatedRef.current = updated
 
-    // #region agent log
-    fetch('http://127.0.0.1:7902/ingest/125efaa0-8f20-4b5f-a685-041b1c8d9b4d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'2777d5'},body:JSON.stringify({sessionId:'2777d5',location:'App.jsx:addVoice-updated',message:'updated',data:{isNewSession,updated:updated.map(u=>u?.slice(0,50)),hasOk},timestamp:Date.now(),hypothesisId:'H2'})}).catch(()=>{});
-    // #endregion
-
     if (hasOk) {
       // Печатаем только полные шаблоны (есть 4 числа: день месяц час минута), чтобы не слать обрывки вроде «сыр Пармезан 03 10»
       const hasCompleteTemplate = (s) => (/\d{1,2}\s+\d{1,2}\s+\d{1,2}\s+\d{1,2}/.test(normalizePhrase(s || '')))
       const toPrint = updated.filter(hasCompleteTemplate)
-      // #region agent log
-      _setDlDebug(prev => prev + ' → PRINT!')
-      fetch('http://127.0.0.1:7902/ingest/125efaa0-8f20-4b5f-a685-041b1c8d9b4d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'d04e56'},body:JSON.stringify({sessionId:'d04e56',location:'App.jsx:hasOk-triggerPrint',message:'ok-triggered-print',data:{updatedLen:updated.length,toPrintLen:toPrint.length,updated,toPrint},timestamp:Date.now(),hypothesisId:'H3'})}).catch(()=>{});
-      // #endregion
       voiceAccumulatedRef.current = []
       voiceCrossSessionRef.current = []
       triggerVoiceBatchPrint(toPrint.length ? toPrint : updated)
@@ -771,9 +745,6 @@ function App() {
         .join(' ')
       voiceCrossSessionRef.current[voiceCrossSessionRef.current.length - 1] = sessionTranscript
       const fullTranscript = voiceCrossSessionRef.current.filter(Boolean).join(' ')
-      // #region agent log
-      fetch('http://127.0.0.1:7902/ingest/125efaa0-8f20-4b5f-a685-041b1c8d9b4d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'2777d5'},body:JSON.stringify({sessionId:'2777d5',location:'App.jsx:onresult',message:'onresult',data:{sessionTranscript:sessionTranscript?.slice(0,80),fullTranscript:fullTranscript?.slice(0,120),crossLen:voiceCrossSessionRef.current.length},timestamp:Date.now(),hypothesisId:'H4'})}).catch(()=>{});
-      // #endregion
       addVoiceTemplatesFromTranscript(fullTranscript)
     }
 
@@ -815,9 +786,6 @@ function App() {
       voiceAccumulatedRef.current = []
       setPendingVoiceTemplates([])
       clearAutoPrintTimer()
-      // #region agent log
-      fetch('http://127.0.0.1:7902/ingest/125efaa0-8f20-4b5f-a685-041b1c8d9b4d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'2777d5'},body:JSON.stringify({sessionId:'2777d5',location:'App.jsx:voiceToggleOn',message:'voice-on-clear',data:{},timestamp:Date.now(),hypothesisId:'H4'})}).catch(()=>{});
-      // #endregion
       setIsVoiceMode(true)
       voiceModeRef.current = true
       startVoiceSession()
@@ -1259,7 +1227,8 @@ function App() {
                 const touch = e.touches[0]
                 phraseResizeRef.current = { startY: touch.clientY, startHeight: phraseHeight }
                 const onMove = (ev) => {
-                  if (!phraseResizeRef.current) return
+                  if (!phraseResizeRef.current || !ev.touches.length) return
+                  ev.preventDefault()
                   const t = ev.touches[0]
                   const dy = t.clientY - phraseResizeRef.current.startY
                   setPhraseHeight(() => Math.min(400, Math.max(36, phraseResizeRef.current.startHeight + dy)))
@@ -1278,7 +1247,7 @@ function App() {
           <button
             type="button"
             className="parse-btn-small"
-            style={{ height: phraseHeight + 12 }}
+            style={{ height: phraseHeight + 24 }}
             onClick={handleParseOnly}
             disabled={loading || isVoiceMode}
             title="Разобрать"
@@ -2005,9 +1974,7 @@ function App() {
           </p>
         )}
       </div>
-      {/* #region agent log */}
-      {(_dlDebug || window._btLog) && <pre style={{position:'fixed',bottom:0,left:0,right:0,background:'#ff0',color:'#000',fontSize:'12px',padding:'12px 8px',minHeight:'72px',zIndex:9999,margin:0,whiteSpace:'pre-wrap',wordBreak:'break-all'}}>{_dlDebug}{window._btLog ? '\nBT: ' + window._btLog : ''}</pre>}
-      {/* #endregion */}
+      <pre style={{position:'fixed',bottom:0,left:0,right:0,background:'#ff0',color:'#000',fontSize:'12px',padding:'12px 8px',minHeight:'72px',zIndex:9999,margin:0,whiteSpace:'pre-wrap',wordBreak:'break-all'}}>{window._btLog ? 'BT: ' + window._btLog : '\u00A0'}</pre>
     </div>
   )
 }
