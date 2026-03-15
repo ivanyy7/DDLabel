@@ -5,15 +5,13 @@
   font-style: normal;
 }
 
-/* На мобильных фиксируем базовый размер и устраняем переполнение из-за 450px/540px */
+/* На мобильных: не уменьшаем шрифты глобально, только отключаем авто-масштаб и правим вёрстку */
 @media (max-width: 1024px) {
   html {
-    font-size: 16px !important;
     -webkit-text-size-adjust: 100% !important;
     text-size-adjust: 100% !important;
   }
   body {
-    font-size: 16px !important;
     -webkit-text-size-adjust: 100% !important;
     text-size-adjust: 100% !important;
   }
@@ -37,6 +35,8 @@
     min-width: 0;
   }
   .app-tabs-wrap {
+    margin-left: auto !important;
+    margin-right: 0 !important;
     justify-content: flex-end;
     padding-left: 0;
     padding-right: 0;

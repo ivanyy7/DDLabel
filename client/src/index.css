@@ -86,15 +86,13 @@ html[data-theme="dark"] button {
   background-color: #1a1a1a;
 }
 
-/* Мобильные: фиксируем базовый размер шрифта, чтобы не масштабировалось всё подряд */
+/* Мобильные: отключаем авто-масштаб текста, размер шрифта не принуждаем */
 @media (max-width: 1024px) {
   html {
-    font-size: 16px !important;
     -webkit-text-size-adjust: 100% !important;
     text-size-adjust: 100% !important;
   }
   body {
-    font-size: 16px !important;
     -webkit-text-size-adjust: 100% !important;
     text-size-adjust: 100% !important;
   }
