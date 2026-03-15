@@ -105,7 +105,7 @@ html[data-theme="dark"] .settings-print-modes .print-mode-title {
   color: #333;
 }
 html[data-theme="dark"] .settings-print-modes .print-mode-block p {
-  color: #ccc;
+  color: #d8d8d8;
 }
 .settings-print-modes .print-modes-note {
   margin-bottom: 0;
@@ -113,7 +113,7 @@ html[data-theme="dark"] .settings-print-modes .print-mode-block p {
   color: #666;
 }
 html[data-theme="dark"] .settings-print-modes .print-modes-note {
-  color: #999;
+  color: #b0b0b0;
 }
 
 .settings-print-modes .print-mode-toggle-row {
@@ -172,6 +172,11 @@ html[data-theme="light"] .theme-toggle-active {
   margin-bottom: 1rem;
   color: #1a1a1a;
   font-family: 'OpenSans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+html[data-theme="dark"] .card {
+  background: #2d2d2d;
+  color: #e8e8e8;
 }
 
 .label-preview {
@@ -343,6 +348,11 @@ html[data-theme="light"] .theme-toggle-active {
 .card p,
 .card strong {
   color: #1a1a1a;
+}
+
+html[data-theme="dark"] .card p,
+html[data-theme="dark"] .card strong {
+  color: #e0e0e0;
 }
 
 .card button {
@@ -590,10 +600,18 @@ html[data-theme="dark"] .card .mode-toggle-btn.mode-toggle-active {
   color: #1a1a1a;
 }
 
+html[data-theme="dark"] .card-title {
+  color: #f0f0f0;
+}
+
 .card-desc {
   margin-bottom: 1rem;
   font-size: 0.9rem;
   color: #1a1a1a;
+}
+
+html[data-theme="dark"] .card-desc {
+  color: #d0d0d0;
 }
 
 .shelf-add {
