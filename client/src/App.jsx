@@ -1230,7 +1230,7 @@ function App() {
             </button>
           )}
         </div>
-        <div className="card-buttons phrase-buttons">
+        <div className="card-buttons phrase-buttons phrase-buttons-grid">
           <button
             type="button"
             onClick={handleVoiceToggle}
