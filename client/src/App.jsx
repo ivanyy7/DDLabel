@@ -1295,7 +1295,6 @@ function App() {
           <button
             type="button"
             className="parse-btn-small"
-            style={{ height: phraseHeight + 24 }}
             onClick={handleParseOnly}
             disabled={loading || isVoiceMode}
             title="Разобрать"
