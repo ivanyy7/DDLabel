@@ -5,7 +5,14 @@
   font-style: normal;
 }
 
-/* На мобильных: не уменьшаем шрифты глобально, только отключаем авто-масштаб и правим вёрстку */
+/*
+  Разделение отображения: ПК и мобильный.
+  Breakpoint: 1024px.
+  • ПК (desktop): правки вносить в блок «=== ПК: min-width 1025px ===» (ищется по комментарию в файле).
+  • Мобильный (телефон/планшет): правки вносить в блок «=== Мобильный: max-width 1024px ===».
+*/
+
+/* ========== Мобильный (телефон/планшет): до 1024px — только стили для телефона ========== */
 @media (max-width: 1024px) {
   html {
     -webkit-text-size-adjust: 100% !important;
@@ -56,6 +63,28 @@
   margin: 0 auto;
   padding: 2rem;
   text-align: center;
+}
+
+/* ========== ПК (desktop): от 1025px — только стили для экрана ПК (правки по виду для ПК — сюда) ========== */
+@media (min-width: 1025px) {
+  #root {
+    max-width: 880px;
+    padding: 2.5rem 2rem;
+  }
+
+  .app-tabs-wrap {
+    max-width: 880px;
+  }
+
+  .phrase-input-main {
+    height: 400px !important;
+    font-size: 2rem !important;
+    line-height: 1.4;
+  }
+
+  .phrase-buttons-grid {
+    max-width: 380px;
+  }
 }
 
 .app h1 {

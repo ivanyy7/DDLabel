@@ -9,7 +9,7 @@
 - **Корень проекта** — PLAN.md (план, роль, этапы, стек), PROJECT_MAP.md, PROJECT_LOG.md, PROMPT_PLAN.md (промт и вопросы для плана), README.md, LICENSE, .gitignore (Node.js).
 - **`.cursor/rules/`** — правила чата, форматы, лог/карта, запрет секретов и т.д.
 - **`.github/workflows/`** — ci.yml (CI при push в main; зелёная галочка у коммитов).
-- **`docs/`** — справочные материалы: printer-xp365b.md (принтер XP-365B), **label-format.md** (формат этикетки 30×20 мм — название, даты ДД.ММ, время ЧЧ.ММ, символ ∞, две колонки), **UI-размеры-таблица-продуктов.md** (текущий вариант ресайза колонок в rem и вариант с фиксированными ширинами в px для проработки).
+- **`docs/`** — справочные материалы: printer-xp365b.md (принтер XP-365B), **label-format.md** (формат этикетки 30×20 мм — название, даты ДД.ММ, время ЧЧ.ММ, символ ∞, две колонки), **UI-размеры-таблица-продуктов.md** (текущий вариант ресайза колонок в rem и вариант с фиксированными ширинами в px для проработки), **UI-ПК-и-мобильный.md** (разделение отображения ПК/мобильный: breakpoint 1024px, куда вносить правки по виду в App.css).
 
 **Этап 1 (в работе):**
 - **`server/`** — Node.js (Express): `index.js` (API печати POST /api/print, POST /api/print-tspl — TSPL base64 для Bluetooth, POST /api/test-print для калибровки, POST /api/parse, CRUD справочника, GET /api/printers, GET /api/tspl-fonts), **`tsplDriver.js`** (TSPL: buildTsplLabel — полная этикетка; buildTsplLabelSingle — одиночный режим: название + дата и время в одну строку; buildTsplTestDates — калибровка; TSPL_FONTS; CP866), labelBuilder.js (устаревший ESC/POS), phraseParser.js, shelfLife.js, shelfStorage.js. Печать: сырые команды TSPL на принтер по USB. Запуск: `npm start`. Порт 3001.
