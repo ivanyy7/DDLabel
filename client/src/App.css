@@ -5,7 +5,7 @@
   font-style: normal;
 }
 
-/* На мобильных фиксируем базовый размер, чтобы интерфейс не масштабировался целиком */
+/* На мобильных фиксируем базовый размер и устраняем переполнение из-за 450px/540px */
 @media (max-width: 1024px) {
   html {
     font-size: 16px !important;
@@ -17,9 +17,24 @@
     -webkit-text-size-adjust: 100% !important;
     text-size-adjust: 100% !important;
   }
+  .phrase-input-wrap {
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+  .phrase-row {
+    flex-wrap: wrap;
+    min-width: 0;
+  }
+  .phrase-input-main {
+    height: 200px !important;
+    max-height: 40vh;
+    font-size: 1rem !important;
+  }
   .phrase-buttons-grid {
-    max-width: 320px !important;
-    width: auto !important;
+    width: 320px !important;
+    max-width: 100% !important;
+    min-width: 0;
   }
 }
 
