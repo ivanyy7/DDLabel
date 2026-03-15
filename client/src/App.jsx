@@ -1212,32 +1212,42 @@ function App() {
       </div>
 
       {activeTab === 'main' && (
-      <section className="card">
-        <p>Фраза (продукт и дата/время изготовления). Для пакетной печати добавьте «N штук» (2–50):</p>
-        <div className="phrase-row">
-          <div className={`phrase-input-wrap${!showParseButton ? ' phrase-input-wrap--full' : ''}`}>
-            <textarea
-              className="phrase-input phrase-input-main"
-              placeholder="сыр Россия 10 03 11 10"
-              value={phrase}
-              onChange={(e) => {
-                setPhrase(e.target.value)
-              }}
-              disabled={loading || isVoiceMode}
-            />
+      <>
+        <section className="card">
+          <p>Фраза (продукт и дата/время изготовления). Для пакетной печати добавьте «N штук» (2–50):</p>
+          <div className="phrase-row">
+            <div className={`phrase-input-wrap${!showParseButton ? ' phrase-input-wrap--full' : ''}`}>
+              <textarea
+                className="phrase-input phrase-input-main"
+                placeholder="сыр Россия 10 03 11 10"
+                value={phrase}
+                onChange={(e) => {
+                  setPhrase(e.target.value)
+                }}
+                disabled={loading || isVoiceMode}
+              />
+            </div>
+            {showParseButton && (
+              <button
+                type="button"
+                className="parse-btn-small"
+                onClick={handleParseOnly}
+                disabled={loading || isVoiceMode}
+                title="Разобрать"
+              >
+                Р
+              </button>
+            )}
           </div>
-          {showParseButton && (
-            <button
-              type="button"
-              className="parse-btn-small"
-              onClick={handleParseOnly}
-              disabled={loading || isVoiceMode}
-              title="Разобрать"
-            >
-              Р
-            </button>
+          {parsedResult && (
+            <p className="parsed-info">
+              <strong>{parsedResult.productName}</strong>
+              {labelMode === 'single'
+                ? ` — изготовление: ${new Date(parsedResult.madeAt).toLocaleString('ru-RU')}`
+                : ` — изготовление: ${new Date(parsedResult.madeAt).toLocaleString('ru-RU')}, срок до: ${new Date(parsedResult.expiresAt).toLocaleString('ru-RU')}`}
+            </p>
           )}
-        </div>
+        </section>
         <div className="card-buttons phrase-buttons phrase-buttons-grid">
           <button
             type="button"
@@ -1269,15 +1279,7 @@ function App() {
             Сброс
           </button>
         </div>
-        {parsedResult && (
-          <p className="parsed-info">
-            <strong>{parsedResult.productName}</strong>
-            {labelMode === 'single'
-              ? ` — изготовление: ${new Date(parsedResult.madeAt).toLocaleString('ru-RU')}`
-              : ` — изготовление: ${new Date(parsedResult.madeAt).toLocaleString('ru-RU')}, срок до: ${new Date(parsedResult.expiresAt).toLocaleString('ru-RU')}`}
-          </p>
-        )}
-      </section>
+      </>
       )}
 
       {activeTab === 'shelf' && (
