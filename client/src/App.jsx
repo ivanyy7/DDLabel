@@ -1285,7 +1285,7 @@ function App() {
           >
             Голос
           </button>
-          <button type="button" onClick={handleParseAndPrint} disabled={loading}>
+          <button type="button" onClick={handleParseAndPrint} disabled={loading} className="phrase-print-btn">
             {loading ? 'Отправка…' : 'на Печать'}
           </button>
           <button

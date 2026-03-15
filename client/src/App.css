@@ -47,6 +47,10 @@
     font-size: 1.5rem;
     min-height: 3rem;
   }
+  .phrase-buttons-grid .phrase-print-btn { order: 1; }
+  .phrase-buttons-grid .voice-btn { order: 2; }
+  .phrase-buttons-grid .mode-toggle-btn { order: 3; }
+  .phrase-buttons-grid .phrase-reset-btn { order: 4; }
   .app-tabs-wrap {
     margin-left: auto !important;
     margin-right: 0 !important;
