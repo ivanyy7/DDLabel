@@ -19,7 +19,7 @@
 
 .app-tabs-wrap {
   max-width: 640px;
-  margin: 0.5rem auto 1.5rem;
+  margin: 1.25rem auto 1.5rem;
   padding: 0 1.5rem;
   display: flex;
   justify-content: flex-end;
