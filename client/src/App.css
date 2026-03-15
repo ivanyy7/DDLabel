@@ -459,7 +459,7 @@ html[data-theme="dark"] .voice-btn.voice-btn-active {
   align-items: flex-start;
   justify-content: center;
   gap: 0.5rem;
-  margin-top: 0.5rem;
+  margin-top: 0.75rem;
 }
 
 .parse-btn-small {

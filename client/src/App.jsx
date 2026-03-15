@@ -1192,6 +1192,36 @@ function App() {
       {activeTab === 'main' && (
       <section className="card">
         <p>Фраза (продукт и дата/время изготовления). Для пакетной печати добавьте «N штук» (2–50):</p>
+        <div className="card-buttons phrase-buttons">
+          <button
+            type="button"
+            onClick={handleVoiceToggle}
+            disabled={loading}
+            className={isVoiceMode ? 'voice-btn voice-btn-active' : 'voice-btn'}
+          >
+            Голос
+          </button>
+          <button type="button" onClick={handleParseAndPrint} disabled={loading}>
+            {loading ? 'Отправка…' : 'на Печать'}
+          </button>
+          <button
+            type="button"
+            className={`mode-toggle-btn ${labelMode === 'single' ? 'mode-toggle-active' : ''}`}
+            onClick={() => setLabelMode((m) => (m === 'double' ? 'single' : 'double'))}
+            disabled={loading}
+            title={labelMode === 'double' ? 'Переключить на одиночный режим' : 'Переключить на двойной режим'}
+          >
+            {labelMode === 'double' ? 'Двойной' : 'Одиночн'}
+          </button>
+          <button
+            type="button"
+            className="phrase-clear-btn"
+            onClick={handleClearPhrase}
+            disabled={loading || !phrase}
+          >
+            Сброс
+          </button>
+        </div>
         <div className="phrase-row">
           <div className="phrase-input-wrap">
             <textarea
@@ -1253,36 +1283,6 @@ function App() {
             title="Разобрать"
           >
             Р
-          </button>
-        </div>
-        <div className="card-buttons phrase-buttons">
-          <button
-            type="button"
-            onClick={handleVoiceToggle}
-            disabled={loading}
-            className={isVoiceMode ? 'voice-btn voice-btn-active' : 'voice-btn'}
-          >
-            Голос
-          </button>
-          <button type="button" onClick={handleParseAndPrint} disabled={loading}>
-            {loading ? 'Отправка…' : 'на Печать'}
-          </button>
-          <button
-            type="button"
-            className={`mode-toggle-btn ${labelMode === 'single' ? 'mode-toggle-active' : ''}`}
-            onClick={() => setLabelMode((m) => (m === 'double' ? 'single' : 'double'))}
-            disabled={loading}
-            title={labelMode === 'double' ? 'Переключить на одиночный режим' : 'Переключить на двойной режим'}
-          >
-            {labelMode === 'double' ? 'Двойной' : 'Одиночн'}
-          </button>
-          <button
-            type="button"
-            className="phrase-clear-btn"
-            onClick={handleClearPhrase}
-            disabled={loading || !phrase}
-          >
-            Сброс
           </button>
         </div>
         {parsedResult && (
