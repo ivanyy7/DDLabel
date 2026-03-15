@@ -11,6 +11,7 @@ const THEME_STORAGE_KEY = 'ddlabel_theme'
 const SHELF_LOCAL_KEY = 'ddlabel_shelf_local'
 const WORK_OFFLINE_KEY = 'ddlabel_work_offline'
 const PHRASE_HEIGHT_KEY = 'ddlabel_phrase_height'
+const DEBUG_STRIP_KEY = 'ddlabel_show_debug_strip'
 
 function getLocalShelf() {
   try {
@@ -209,6 +210,15 @@ function App() {
     }
   })
 
+  // Отладочная полоса внизу экрана (логи Bluetooth и ошибки) — включается в настройках при проблемах
+  const [showDebugStrip, setShowDebugStrip] = useState(() => {
+    try {
+      return localStorage.getItem(DEBUG_STRIP_KEY) === 'true'
+    } catch {
+      return false
+    }
+  })
+
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
     try {
@@ -217,6 +227,14 @@ function App() {
       /* ignore */
     }
   }, [theme])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(DEBUG_STRIP_KEY, showDebugStrip ? 'true' : 'false')
+    } catch {
+      /* ignore */
+    }
+  }, [showDebugStrip])
 
   useEffect(() => {
     try {
@@ -1424,6 +1442,30 @@ function App() {
           </div>
         </section>
 
+        <section className="card settings-print-modes">
+          <h2 className="card-title">Отладка</h2>
+          <p className="card-desc">Жёлтая полоса внизу экрана с логами Bluetooth и ошибками. Включайте при проблемах с печатью.</p>
+          <div className="print-mode-toggle-row">
+            <span className="print-mode-toggle-label">Показывать отладочную полосу</span>
+            <div className="theme-toggle">
+              <button
+                type="button"
+                className={`theme-toggle-btn ${!showDebugStrip ? 'theme-toggle-active' : ''}`}
+                onClick={() => setShowDebugStrip(false)}
+              >
+                Выкл
+              </button>
+              <button
+                type="button"
+                className={`theme-toggle-btn ${showDebugStrip ? 'theme-toggle-active' : ''}`}
+                onClick={() => setShowDebugStrip(true)}
+              >
+                Вкл
+              </button>
+            </div>
+          </div>
+        </section>
+
       <section className="card">
         <h2 className="card-title">Превью макета этикетки 30×20 мм</h2>
         <p className="card-desc">Это только визуальный макет (Open Sans), по нему будем подбирать расположение элементов для печати. Настройки можно сохранять как шаблон (1_1, 1_2 и т.д.).</p>
@@ -1974,7 +2016,7 @@ function App() {
           </p>
         )}
       </div>
-      <pre style={{position:'fixed',bottom:0,left:0,right:0,background:'#ff0',color:'#000',fontSize:'12px',padding:'12px 8px',minHeight:'72px',zIndex:9999,margin:0,whiteSpace:'pre-wrap',wordBreak:'break-all'}}>{window._btLog ? 'BT: ' + window._btLog : '\u00A0'}</pre>
+      {showDebugStrip && <pre style={{position:'fixed',bottom:0,left:0,right:0,background:'#ff0',color:'#000',fontSize:'12px',padding:'12px 8px',minHeight:'72px',zIndex:9999,margin:0,whiteSpace:'pre-wrap',wordBreak:'break-all'}}>{window._btLog ? 'BT: ' + window._btLog : '\u00A0'}</pre>}
     </div>
   )
 }
