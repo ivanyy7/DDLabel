@@ -72,6 +72,50 @@ html[data-theme="dark"] .app-tab-active {
   justify-content: center;
 }
 
+/* Раздел «Печать» в Настройках (8.3) — режимы офлайн/онлайн */
+.settings-print-modes .print-modes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+.settings-print-modes .print-mode-block {
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.05);
+  border-left: 4px solid #07a;
+}
+html[data-theme="dark"] .settings-print-modes .print-mode-block {
+  background: rgba(255, 255, 255, 0.06);
+  border-left-color: #4af;
+}
+.settings-print-modes .print-mode-title {
+  margin: 0 0 0.35rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+html[data-theme="dark"] .settings-print-modes .print-mode-title {
+  color: #eee;
+}
+.settings-print-modes .print-mode-block p {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  color: #333;
+}
+html[data-theme="dark"] .settings-print-modes .print-mode-block p {
+  color: #ccc;
+}
+.settings-print-modes .print-modes-note {
+  margin-bottom: 0;
+  font-size: 0.85rem;
+  color: #666;
+}
+html[data-theme="dark"] .settings-print-modes .print-modes-note {
+  color: #999;
+}
+
 .theme-toggle-btn {
   padding: 0.5rem 1rem;
   border-radius: 8px;

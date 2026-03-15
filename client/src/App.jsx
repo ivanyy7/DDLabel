@@ -7,6 +7,26 @@ const API_BASE = import.meta.env.VITE_API_URL || ''
 const LABEL_TEMPLATES_KEY = 'ddlabel_label_templates'
 const LABEL_LAST_TEMPLATE_KEY = 'ddlabel_last_template'
 const THEME_STORAGE_KEY = 'ddlabel_theme'
+const SHELF_LOCAL_KEY = 'ddlabel_shelf_local'
+
+function getLocalShelf() {
+  try {
+    const raw = localStorage.getItem(SHELF_LOCAL_KEY)
+    if (!raw) return []
+    const data = JSON.parse(raw)
+    return Array.isArray(data) ? data : []
+  } catch {
+    return []
+  }
+}
+
+function setLocalShelf(items) {
+  try {
+    localStorage.setItem(SHELF_LOCAL_KEY, JSON.stringify(items))
+  } catch {
+    /* ignore */
+  }
+}
 
 const SpeechRecognitionAPI = typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition)
 
@@ -96,8 +116,8 @@ function App() {
   const voiceAccumulatedRef = useRef([]) // накопленные шаблоны между сессиями распознавания
   const voiceCrossSessionRef = useRef([]) // транскрипты между перезапусками recognition (пауза → onend → restart)
 
-  // Справочник сроков
-  const [shelfItems, setShelfItems] = useState([])
+  // Справочник сроков (при загрузке показываем локальную копию, затем обновляем с сервера — п. 8.4)
+  const [shelfItems, setShelfItems] = useState(() => getLocalShelf())
   const [shelfStatus, setShelfStatus] = useState(null)
   const [shelfLoading, setShelfLoading] = useState(false)
   const [addName, setAddName] = useState('')
@@ -211,22 +231,42 @@ function App() {
     }))
   }
 
-  const loadShelf = async () => {
+  const loadShelf = async (showSuccessMessage = false) => {
     setShelfLoading(true)
     setShelfStatus(null)
     try {
       const res = await fetch(`${API_BASE}/api/shelf`)
       const data = await res.json().catch(() => ({}))
-      if (res.ok && data.items) setShelfItems(data.items)
-      else setShelfStatus({ type: 'error', message: 'Не удалось загрузить справочник' })
-    } catch (err) {
-      setShelfStatus({ type: 'error', message: 'Сервер недоступен.' })
+      if (res.ok && Array.isArray(data.items)) {
+        setShelfItems(data.items)
+        setLocalShelf(data.items)
+        if (showSuccessMessage) setShelfStatus({ type: 'ok', message: 'Справочник загружен с сервера' })
+      } else {
+        const local = getLocalShelf()
+        if (local.length) setShelfItems(local)
+        setShelfStatus({ type: 'error', message: 'Не удалось загрузить справочник' })
+      }
+    } catch {
+      const local = getLocalShelf()
+      if (local.length) {
+        setShelfItems(local)
+        setShelfStatus({ type: 'ok', message: 'Используется локальная копия (сервер недоступен)' })
+      } else {
+        setShelfStatus({ type: 'error', message: 'Сервер недоступен. Синхронизируйте при появлении сети.' })
+      }
     } finally {
       setShelfLoading(false)
     }
   }
 
   useEffect(() => { loadShelf() }, [])
+
+  // Автообновление локальной копии справочника при появлении сети (п. 8.4)
+  useEffect(() => {
+    const onOnline = () => loadShelf()
+    window.addEventListener('online', onOnline)
+    return () => window.removeEventListener('online', onOnline)
+  }, [])
 
   useEffect(() => {
     const last = localStorage.getItem(LABEL_LAST_TEMPLATE_KEY)
@@ -1181,6 +1221,9 @@ function App() {
           <button type="button" onClick={() => setShelfListOpen(true)} className="shelf-list-btn">
             Список продуктов
           </button>
+          <button type="button" onClick={() => loadShelf(true)} disabled={shelfLoading} className="shelf-sync-btn" title="Загрузить справочник с сервера и сохранить локальную копию">
+            {shelfLoading ? '…' : 'Обновить с сервера'}
+          </button>
         </div>
         {shelfStatus && (
           <p className={shelfStatus.type === 'ok' ? 'status ok' : 'status error'}>
@@ -1211,6 +1254,23 @@ function App() {
             </button>
           </div>
         </section>
+
+        <section className="card settings-print-modes">
+          <h2 className="card-title">Печать</h2>
+          <p className="card-desc">Режимы работы с телефона (приложение или сайт в браузере, печать по Bluetooth на принтер):</p>
+          <div className="print-modes-list">
+            <div className="print-mode-block">
+              <h3 className="print-mode-title">Онлайн</h3>
+              <p>Телефон + Bluetooth-принтер, есть интернет. Справочник сроков подгружается и обновляется с сервера. Доступны голосовой и текстовый ввод.</p>
+            </div>
+            <div className="print-mode-block">
+              <h3 className="print-mode-title">Офлайн</h3>
+              <p>Телефон + Bluetooth-принтер без интернета. Используется сохранённая на устройстве копия справочника. Ввод только текстом (голос без сети недоступен).</p>
+            </div>
+          </div>
+          <p className="card-desc print-modes-note">Когда нет интернета или сеть нестабильна, приложение может переключиться на локальный режим — тогда расчёт срока идёт по локальной копии справочника.</p>
+        </section>
+
       <section className="card">
         <h2 className="card-title">Превью макета этикетки 30×20 мм</h2>
         <p className="card-desc">Это только визуальный макет (Open Sans), по нему будем подбирать расположение элементов для печати. Настройки можно сохранять как шаблон (1_1, 1_2 и т.д.).</p>
