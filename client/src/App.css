@@ -37,8 +37,17 @@
     min-width: 0;
   }
   .app-tabs-wrap {
-    margin-left: 25vw;
-    padding-left: 0;
+    width: 75vw;
+    max-width: 100%;
+    margin-left: auto;
+    margin-right: 0;
+    padding-left: 0.5rem;
+    padding-right: 1.5rem;
+  }
+  .app-tabs {
+    width: max-content;
+    max-width: 100%;
+    margin-right: 0;
   }
 }
 
