@@ -6,11 +6,20 @@
 }
 
 /* На мобильных фиксируем базовый размер, чтобы интерфейс не масштабировался целиком */
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
   html {
-    font-size: 16px;
-    -webkit-text-size-adjust: 100%;
-    text-size-adjust: 100%;
+    font-size: 16px !important;
+    -webkit-text-size-adjust: 100% !important;
+    text-size-adjust: 100% !important;
+  }
+  body {
+    font-size: 16px !important;
+    -webkit-text-size-adjust: 100% !important;
+    text-size-adjust: 100% !important;
+  }
+  .phrase-buttons-grid {
+    max-width: 320px !important;
+    width: auto !important;
   }
 }
 
