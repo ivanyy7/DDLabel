@@ -116,6 +116,21 @@ html[data-theme="dark"] .settings-print-modes .print-modes-note {
   color: #999;
 }
 
+.settings-print-modes .print-mode-toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 1rem;
+  flex-wrap: wrap;
+}
+.settings-print-modes .print-mode-toggle-label {
+  font-weight: 500;
+  color: #1a1a1a;
+}
+html[data-theme="dark"] .settings-print-modes .print-mode-toggle-label {
+  color: #eee;
+}
+
 .theme-toggle-btn {
   padding: 0.5rem 1rem;
   border-radius: 8px;

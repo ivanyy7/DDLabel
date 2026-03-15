@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { sendTsplViaBluetooth, isBluetoothPrintAvailable } from './bluetoothPrint.js'
+import { buildOfflineTsplBase64, parsePhraseTemplate, resolveExpiryWithShelf } from './offline/index.js'
 import './App.css'
 
 const API_BASE = import.meta.env.VITE_API_URL || ''
@@ -8,6 +9,7 @@ const LABEL_TEMPLATES_KEY = 'ddlabel_label_templates'
 const LABEL_LAST_TEMPLATE_KEY = 'ddlabel_last_template'
 const THEME_STORAGE_KEY = 'ddlabel_theme'
 const SHELF_LOCAL_KEY = 'ddlabel_shelf_local'
+const WORK_OFFLINE_KEY = 'ddlabel_work_offline'
 
 function getLocalShelf() {
   try {
@@ -182,6 +184,15 @@ function App() {
     }
   })
 
+  // Режим «Работать офлайн» (п. 8.6): парсер и справочник на клиенте, без запросов к серверу
+  const [workOffline, setWorkOffline] = useState(() => {
+    try {
+      return localStorage.getItem(WORK_OFFLINE_KEY) === 'true'
+    } catch {
+      return false
+    }
+  })
+
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
     try {
@@ -190,6 +201,14 @@ function App() {
       /* ignore */
     }
   }, [theme])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(WORK_OFFLINE_KEY, workOffline ? 'true' : 'false')
+    } catch {
+      /* ignore */
+    }
+  }, [workOffline])
 
   useEffect(() => {
     voiceModeRef.current = isVoiceMode
@@ -394,6 +413,36 @@ function App() {
     setStatus(null)
     setParsedResult(null)
     setLoading(true)
+
+    // Офлайн-режим (п. 8.6): парсер и TSPL на клиенте, печать по Bluetooth
+    if (workOffline) {
+      try {
+        const localShelf = getLocalShelf()
+        const result = buildOfflineTsplBase64(trimmed, localShelf, currentMode === 'single')
+        if (!result.ok) {
+          setStatus({ type: 'error', message: result.error })
+          return false
+        }
+        if (!isBluetoothPrintAvailable()) {
+          setStatus({ type: 'error', message: 'Для офлайн-печати нужен Bluetooth (Chrome 138+ на Android).' })
+          return false
+        }
+        setStatus({ type: 'info', message: 'Печать по Bluetooth… Выберите принтер.' })
+        const bt = await sendTsplViaBluetooth(result.tsplBase64)
+        if (bt.ok) {
+          setStatus({ type: 'ok', message: 'Этикетка отправлена на печать по Bluetooth.' })
+          return true
+        }
+        setStatus({ type: 'error', message: bt.error || 'Ошибка печати по Bluetooth.' })
+        return false
+      } catch (e) {
+        setStatus({ type: 'error', message: e.message || 'Ошибка офлайн-режима.' })
+        return false
+      } finally {
+        setLoading(false)
+      }
+    }
+
     try {
       const res = await fetch(`${API_BASE}/api/print`, {
         method: 'POST',
@@ -457,6 +506,28 @@ function App() {
       }
       return false
     } catch (err) {
+      // Fallback (п. 8.6): при сбое сети — парсер и справочник на клиенте, печать по Bluetooth
+      if (isBluetoothPrintAvailable()) {
+        try {
+          const localShelf = getLocalShelf()
+          const result = buildOfflineTsplBase64(trimmed, localShelf, currentMode === 'single')
+          if (result.ok) {
+            setStatus({
+              type: 'info',
+              message: 'Нет интернета или нестабильная сеть. Используется локальный режим. Для постоянной работы без сети включите «Работать офлайн» в настройках.',
+            })
+            const bt = await sendTsplViaBluetooth(result.tsplBase64)
+            if (bt.ok) {
+              setStatus({ type: 'ok', message: 'Этикетка отправлена на печать по Bluetooth (локальный режим).' })
+              return true
+            }
+            setStatus({ type: 'error', message: bt.error || 'Ошибка печати по Bluetooth.' })
+            return false
+          }
+        } catch (_) {
+          /* ignore, show generic error below */
+        }
+      }
       setStatus({ type: 'error', message: 'Сервер недоступен.' })
       return false
     } finally {
@@ -944,11 +1015,47 @@ function App() {
     }
     setStatus(null)
     setLoading(true)
+    const singleMode = labelModeRef.current === 'single'
+    const normalized = normalizePhrase(text)
+    if (!normalized) {
+      setStatus({ type: 'error', message: 'Введите фразу.' })
+      setLoading(false)
+      return
+    }
+
+    if (workOffline) {
+      try {
+        const parsed = parsePhraseTemplate(normalized)
+        if (parsed.error) {
+          setParsedResult(null)
+          setStatus({ type: 'error', message: parsed.error })
+          return
+        }
+        const resolved = resolveExpiryWithShelf(getLocalShelf(), parsed, singleMode)
+        if (resolved.error) {
+          setParsedResult(null)
+          setStatus({ type: 'error', message: resolved.error })
+          return
+        }
+        setParsedResult({
+          productName: resolved.productName,
+          madeAt: resolved.madeAt.toISOString(),
+          expiresAt: resolved.expiresAt.toISOString(),
+        })
+        setStatus({ type: 'ok', message: 'Фраза разобрана (офлайн).' })
+      } catch (e) {
+        setStatus({ type: 'error', message: e.message || 'Ошибка разбора.' })
+      } finally {
+        setLoading(false)
+      }
+      return
+    }
+
     try {
       const res = await fetch(`${API_BASE}/api/parse`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phrase: text, singleMode: labelModeRef.current === 'single' }),
+        body: JSON.stringify({ phrase: normalized, singleMode }),
       })
       const data = await res.json().catch(() => ({}))
       if (res.ok) {
@@ -959,6 +1066,21 @@ function App() {
         setStatus({ type: 'error', message: data.error || data.message || 'Ошибка разбора' })
       }
     } catch (err) {
+      const localShelf = getLocalShelf()
+      const parsed = parsePhraseTemplate(normalized)
+      if (!parsed.error) {
+        const resolved = resolveExpiryWithShelf(localShelf, parsed, singleMode)
+        if (!resolved.error) {
+          setParsedResult({
+            productName: resolved.productName,
+            madeAt: resolved.madeAt.toISOString(),
+            expiresAt: resolved.expiresAt.toISOString(),
+          })
+          setStatus({ type: 'info', message: 'Используется локальный режим (сервер недоступен).' })
+          setLoading(false)
+          return
+        }
+      }
       setStatus({ type: 'error', message: 'Сервер недоступен.' })
     } finally {
       setLoading(false)
@@ -1269,6 +1391,25 @@ function App() {
             </div>
           </div>
           <p className="card-desc print-modes-note">Когда нет интернета или сеть нестабильна, приложение может переключиться на локальный режим — тогда расчёт срока идёт по локальной копии справочника.</p>
+          <div className="print-mode-toggle-row">
+            <span className="print-mode-toggle-label">Работать офлайн</span>
+            <div className="theme-toggle">
+              <button
+                type="button"
+                className={`theme-toggle-btn ${!workOffline ? 'theme-toggle-active' : ''}`}
+                onClick={() => setWorkOffline(false)}
+              >
+                Онлайн
+              </button>
+              <button
+                type="button"
+                className={`theme-toggle-btn ${workOffline ? 'theme-toggle-active' : ''}`}
+                onClick={() => setWorkOffline(true)}
+              >
+                Офлайн
+              </button>
+            </div>
+          </div>
         </section>
 
       <section className="card">
