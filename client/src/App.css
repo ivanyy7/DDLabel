@@ -5,6 +5,15 @@
   font-style: normal;
 }
 
+/* На мобильных фиксируем базовый размер, чтобы интерфейс не масштабировался целиком */
+@media (max-width: 768px) {
+  html {
+    font-size: 16px;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+}
+
 #root {
   max-width: 640px;
   margin: 0 auto;
