@@ -85,6 +85,81 @@
   .phrase-buttons-grid {
     max-width: 380px;
   }
+
+  /* На ПК в тёмной теме кнопки главного экрана выделяются (как в Настройках) */
+  html[data-theme="dark"] .phrase-buttons-grid button {
+    background-color: #3d3d3d;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    color: #fff;
+  }
+  html[data-theme="dark"] .phrase-buttons-grid button:hover:not(:disabled) {
+    background-color: #4d4d4d;
+    border-color: rgba(255, 255, 255, 0.4);
+  }
+  html[data-theme="dark"] .phrase-buttons-grid .phrase-reset-btn {
+    background-color: #444 !important;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+  }
+  html[data-theme="dark"] .phrase-buttons-grid .phrase-reset-btn:hover:not(:disabled) {
+    background-color: #555 !important;
+    border-color: rgba(255, 255, 255, 0.4);
+  }
+
+  /* Справочник: серая область не растягивается на всю ширину, сужена по ширине */
+  .card--shelf {
+    max-width: 720px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  /* Справочник: сетка — первая строка: название, Суток, Часов, Добавить (справа); вторая: Список, Обновить (справа) */
+  .shelf-add {
+    display: grid !important;
+    grid-template-columns: 1fr auto auto auto;
+    grid-template-rows: auto auto;
+    gap: 0.5rem;
+    align-items: end;
+    max-width: 100%;
+  }
+  .shelf-add > input.shelf-input:first-child {
+    grid-column: 1;
+    grid-row: 1;
+    min-width: 0;
+    max-width: none !important;
+    width: 100% !important;
+    box-sizing: border-box;
+  }
+  .shelf-add > label.shelf-label:nth-child(2) {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .shelf-add > label.shelf-label:nth-child(3) {
+    grid-column: 3;
+    grid-row: 1;
+  }
+  .shelf-add input.shelf-input:not(.shelf-num) {
+    min-width: 210px;
+    max-width: 100% !important;
+    width: 100% !important;
+    box-sizing: border-box;
+  }
+  .shelf-add .shelf-add-btn {
+    grid-column: 4;
+    grid-row: 1;
+    justify-self: end;
+  }
+  .shelf-add .shelf-list-btn {
+    grid-column: 1;
+    grid-row: 2;
+    margin-top: 0.5rem;
+  }
+  .shelf-add .shelf-sync-btn {
+    grid-column: 4;
+    grid-row: 2;
+    justify-self: end;
+    margin-top: 0.5rem;
+    white-space: nowrap;
+  }
 }
 
 .app h1 {
@@ -438,6 +513,13 @@ html[data-theme="light"] .card button,
 html[data-theme="light"] .phrase-buttons-grid button {
   color: #fff !important;
   background-color: #1a1a1a !important;
+}
+
+/* Светлая тема: кнопка «Одиночн» (активный режим) — зелёная, как в тёмной */
+html[data-theme="light"] .phrase-buttons-grid .mode-toggle-btn.mode-toggle-active {
+  background-color: #007b3a !important;
+  color: #fff !important;
+  border-color: #00662e;
 }
 
 html[data-theme="light"] .shelf-actions-cell .shelf-del-btn {

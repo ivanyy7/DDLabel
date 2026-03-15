@@ -7,6 +7,17 @@
 const app = require('./app');
 const PORT = process.env.PORT || 3001;
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`DDLabel сервер: http://localhost:${PORT}`);
 });
+
+function shutdown() {
+  console.log('\nОстановка сервера...');
+  server.close(() => {
+    process.exit(0);
+  });
+  setTimeout(() => process.exit(1), 5000);
+}
+
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);

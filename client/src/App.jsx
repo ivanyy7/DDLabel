@@ -134,6 +134,7 @@ function App() {
   const [shelfListOpen, setShelfListOpen] = useState(false)
   const [aliasesModalItem, setAliasesModalItem] = useState(null)
   const [aliasesModalValue, setAliasesModalValue] = useState('')
+  const shelfAddRef = useRef(null)
 
   // Настройки превью этикетки и шаблоны
   const [selectedElement, setSelectedElement] = useState('title')
@@ -310,6 +311,41 @@ function App() {
   }
 
   useEffect(() => { loadShelf() }, [])
+
+  // #region agent log
+  useEffect(() => {
+    if (activeTab !== 'shelf' || !shelfAddRef.current) return
+    const el = shelfAddRef.current
+    const run = () => {
+      requestAnimationFrame(() => {
+        const addBtn = el.querySelector('.shelf-add-btn')
+        const syncBtn = el.querySelector('.shelf-sync-btn')
+        if (!addBtn || !syncBtn) return
+        const rAdd = addBtn.getBoundingClientRect()
+        const rSync = syncBtn.getBoundingClientRect()
+        const containerW = el.offsetWidth
+        const viewportW = window.innerWidth
+        const cs = getComputedStyle(el)
+        const csAdd = getComputedStyle(addBtn)
+        const data = {
+          addRight: rAdd.right,
+          syncRight: rSync.right,
+          containerWidth: containerW,
+          alignDiff: rSync.right - rAdd.right,
+          viewportWidth: viewportW,
+          containerDisplay: cs.display,
+          addBtnGridColumn: csAdd.gridColumn,
+          addBtnGridRow: csAdd.gridRow,
+          pcMediaExpected: viewportW >= 1025
+        }
+        fetch('http://127.0.0.1:7902/ingest/125efaa0-8f20-4b5f-a685-041b1c8d9b4d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'8f8d06'},body:JSON.stringify({sessionId:'8f8d06',location:'App.jsx:shelf-align',message:'shelf layout debug',data,timestamp:Date.now()})}).catch(()=>{})
+      })
+    }
+    run()
+    const t = setTimeout(run, 100)
+    return () => clearTimeout(t)
+  }, [activeTab])
+  // #endregion
 
   // Автообновление локальной копии справочника при появлении сети (п. 8.4)
   useEffect(() => {
@@ -1275,10 +1311,10 @@ function App() {
       )}
 
       {activeTab === 'shelf' && (
-      <section className="card">
+      <section className="card card--shelf">
         <h2 className="card-title">Справочник сроков</h2>
         <p className="card-desc">Добавляйте продукты и срок хранения (в часах или сутках). Справочник используется при разборе фразы и печати этикетки.</p>
-        <div className="shelf-add">
+        <div className="shelf-add" ref={shelfAddRef}>
           <input
             type="text"
             className="phrase-input shelf-input"
@@ -1327,7 +1363,7 @@ function App() {
               disabled={shelfLoading}
             />
           </label>
-          <button onClick={handleShelfAdd} disabled={shelfLoading}>
+          <button onClick={handleShelfAdd} disabled={shelfLoading} className="shelf-add-btn">
             {shelfLoading ? '…' : 'Добавить'}
           </button>
           <button type="button" onClick={() => setShelfListOpen(true)} className="shelf-list-btn">
