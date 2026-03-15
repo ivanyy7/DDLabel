@@ -579,9 +579,12 @@ function App() {
     if (!list.length) return
     clearAutoPrintTimer()
     setPendingVoiceTemplates([])
+    const resolved = resolveTemplatesWithQuantity(list)
+    // #region agent log
+    fetch('http://127.0.0.1:7902/ingest/125efaa0-8f20-4b5f-a685-041b1c8d9b4d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'2777d5'},body:JSON.stringify({sessionId:'2777d5',location:'App.jsx:triggerVoiceBatchPrint',message:'batch-print',data:{list,resolved:resolved.map(r=>({phrase:r.phrase?.slice(0,40),count:r.count}))},timestamp:Date.now(),hypothesisId:'H1'})}).catch(()=>{});
+    // #endregion
     ;(async () => {
       let allOk = true
-      const resolved = resolveTemplatesWithQuantity(list)
       for (const { phrase, count } of resolved) {
         for (let i = 0; i < count; i++) {
           const ok = await sendPhraseToPrint(phrase)
@@ -600,6 +603,9 @@ function App() {
   const scheduleAutoPrint = (templates) => {
     if (!templates.length) return
     clearAutoPrintTimer()
+    // #region agent log
+    fetch('http://127.0.0.1:7902/ingest/125efaa0-8f20-4b5f-a685-041b1c8d9b4d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'2777d5'},body:JSON.stringify({sessionId:'2777d5',location:'App.jsx:scheduleAutoPrint',message:'schedule-7s',data:{templates:templates.map(t=>t?.slice(0,50)),len:templates.length},timestamp:Date.now(),hypothesisId:'H3'})}).catch(()=>{});
+    // #endregion
     autoPrintTimerRef.current = setTimeout(() => {
       triggerVoiceBatchPrint(templates)
     }, 7000)
@@ -674,6 +680,10 @@ function App() {
     const newSegments = parseToSegments(withoutOk)
     if (!newSegments.length) return
 
+    // #region agent log
+    fetch('http://127.0.0.1:7902/ingest/125efaa0-8f20-4b5f-a685-041b1c8d9b4d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'2777d5'},body:JSON.stringify({sessionId:'2777d5',location:'App.jsx:addVoice-segments',message:'segments',data:{normalizedFull:normalizedFull?.slice(0,80),withoutOk:withoutOk?.slice(0,80),newSegments,hasOk},timestamp:Date.now(),hypothesisId:'H2-H5'})}).catch(()=>{});
+    // #endregion
+
     // Новая сессия распознавания даёт только новый фрагмент — дополняем. Иначе заменяем полным транскриптом.
     const prevJoined = voiceAccumulatedRef.current.join(' ')
     const isNewSession = prevJoined && !withoutOk.startsWith(prevJoined) && withoutOk !== prevJoined
@@ -696,6 +706,10 @@ function App() {
       updated = newSegments
     }
     voiceAccumulatedRef.current = updated
+
+    // #region agent log
+    fetch('http://127.0.0.1:7902/ingest/125efaa0-8f20-4b5f-a685-041b1c8d9b4d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'2777d5'},body:JSON.stringify({sessionId:'2777d5',location:'App.jsx:addVoice-updated',message:'updated',data:{isNewSession,updated:updated.map(u=>u?.slice(0,50)),hasOk},timestamp:Date.now(),hypothesisId:'H2'})}).catch(()=>{});
+    // #endregion
 
     if (hasOk) {
       // #region agent log
@@ -737,6 +751,9 @@ function App() {
         .join(' ')
       voiceCrossSessionRef.current[voiceCrossSessionRef.current.length - 1] = sessionTranscript
       const fullTranscript = voiceCrossSessionRef.current.filter(Boolean).join(' ')
+      // #region agent log
+      fetch('http://127.0.0.1:7902/ingest/125efaa0-8f20-4b5f-a685-041b1c8d9b4d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'2777d5'},body:JSON.stringify({sessionId:'2777d5',location:'App.jsx:onresult',message:'onresult',data:{sessionTranscript:sessionTranscript?.slice(0,80),fullTranscript:fullTranscript?.slice(0,120),crossLen:voiceCrossSessionRef.current.length},timestamp:Date.now(),hypothesisId:'H4'})}).catch(()=>{});
+      // #endregion
       addVoiceTemplatesFromTranscript(fullTranscript)
     }
 
@@ -775,6 +792,12 @@ function App() {
       }
       voiceErrorRef.current = false
       voiceCrossSessionRef.current = []
+      voiceAccumulatedRef.current = []
+      setPendingVoiceTemplates([])
+      clearAutoPrintTimer()
+      // #region agent log
+      fetch('http://127.0.0.1:7902/ingest/125efaa0-8f20-4b5f-a685-041b1c8d9b4d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'2777d5'},body:JSON.stringify({sessionId:'2777d5',location:'App.jsx:voiceToggleOn',message:'voice-on-clear',data:{},timestamp:Date.now(),hypothesisId:'H4'})}).catch(()=>{});
+      // #endregion
       setIsVoiceMode(true)
       voiceModeRef.current = true
       startVoiceSession()
@@ -1963,7 +1986,7 @@ function App() {
         )}
       </div>
       {/* #region agent log */}
-      {(_dlDebug || window._btLog) && <pre style={{position:'fixed',bottom:0,left:0,right:0,background:'#ff0',color:'#000',fontSize:'11px',padding:'4px 8px',zIndex:9999,margin:0,whiteSpace:'pre-wrap',wordBreak:'break-all'}}>{_dlDebug}{window._btLog ? '\nBT: ' + window._btLog : ''}</pre>}
+      {(_dlDebug || window._btLog) && <pre style={{position:'fixed',bottom:0,left:0,right:0,background:'#ff0',color:'#000',fontSize:'12px',padding:'12px 8px',minHeight:'72px',zIndex:9999,margin:0,whiteSpace:'pre-wrap',wordBreak:'break-all'}}>{_dlDebug}{window._btLog ? '\nBT: ' + window._btLog : ''}</pre>}
       {/* #endregion */}
     </div>
   )
