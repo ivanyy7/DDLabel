@@ -19,7 +19,7 @@
 
 .app-tabs-wrap {
   max-width: 640px;
-  margin: 0 auto 1.5rem;
+  margin: 0.5rem auto 1.5rem;
   padding: 0 1.5rem;
   display: flex;
   justify-content: flex-end;
@@ -158,11 +158,6 @@ html[data-theme="light"] .theme-toggle-btn {
 html[data-theme="light"] .theme-toggle-active {
   background: #1a1a1a !important;
   color: #fff !important;
-}
-
-.subtitle {
-  margin-bottom: 2rem;
-  opacity: 0.9;
 }
 
 .card {

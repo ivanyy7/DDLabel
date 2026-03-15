@@ -1176,7 +1176,6 @@ function App() {
   return (
     <div className="app">
       <h1>DDLabel</h1>
-      <p className="subtitle">Печать этикеток по голосу</p>
 
       <div className="app-tabs-wrap">
         <nav className="app-tabs">
