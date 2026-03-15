@@ -37,13 +37,15 @@
     min-width: 0;
   }
   .app-tabs-wrap {
-    padding-left: 25vw;
     justify-content: flex-end;
+    padding-left: 0;
+    padding-right: 0;
   }
   .app-tabs {
-    width: max-content;
-    margin-left: auto;
-    margin-right: 0;
+    padding-left: 25vw;
+    box-sizing: border-box;
+    width: 100%;
+    justify-content: flex-end;
   }
 }
 
