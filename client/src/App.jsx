@@ -1276,36 +1276,38 @@ function App() {
             </p>
           )}
         </section>
-        <div className="card-buttons phrase-buttons phrase-buttons-grid">
-          <button
-            type="button"
-            onClick={handleVoiceToggle}
-            disabled={loading}
-            className={isVoiceMode ? 'voice-btn voice-btn-active' : 'voice-btn'}
-          >
-            Голос
-          </button>
-          <button type="button" onClick={handleParseAndPrint} disabled={loading} className="phrase-print-btn">
-            {loading ? 'Отправка…' : 'на Печать'}
-          </button>
-          <button
-            type="button"
-            className={`mode-toggle-btn ${labelMode === 'single' ? 'mode-toggle-active' : ''}`}
-            onClick={() => setLabelMode((m) => (m === 'double' ? 'single' : 'double'))}
-            disabled={loading}
-            title={labelMode === 'double' ? 'Переключить на одиночный режим' : 'Переключить на двойной режим'}
-          >
-            {labelMode === 'double' ? 'Двойной' : 'Одиночн'}
-          </button>
-          <button
-            type="button"
-            className="phrase-reset-btn"
-            onClick={handleClearPhrase}
-            disabled={loading || !phrase}
-            title="Очистить поле"
-          >
-            Сброс
-          </button>
+        <div className="main-buttons-wrap">
+          <div className="card-buttons phrase-buttons phrase-buttons-grid">
+            <button
+              type="button"
+              onClick={handleVoiceToggle}
+              disabled={loading}
+              className={isVoiceMode ? 'voice-btn voice-btn-active' : 'voice-btn'}
+            >
+              Голос
+            </button>
+            <button type="button" onClick={handleParseAndPrint} disabled={loading} className="phrase-print-btn">
+              {loading ? 'Отправка…' : 'на Печать'}
+            </button>
+            <button
+              type="button"
+              className={`mode-toggle-btn ${labelMode === 'single' ? 'mode-toggle-active' : ''}`}
+              onClick={() => setLabelMode((m) => (m === 'double' ? 'single' : 'double'))}
+              disabled={loading}
+              title={labelMode === 'double' ? 'Переключить на одиночный режим' : 'Переключить на двойной режим'}
+            >
+              {labelMode === 'double' ? 'Двойной' : 'Одиночн'}
+            </button>
+            <button
+              type="button"
+              className="phrase-reset-btn"
+              onClick={handleClearPhrase}
+              disabled={loading || !phrase}
+              title="Очистить поле"
+            >
+              Сброс
+            </button>
+          </div>
         </div>
       </>
       )}

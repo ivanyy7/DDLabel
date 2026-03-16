@@ -66,6 +66,17 @@
     width: 100%;
     justify-content: flex-end;
   }
+
+  .main-buttons-wrap {
+    margin-top: 0.75rem;
+    padding: 1rem 1.25rem;
+    background: #f0f0f0;
+    border-radius: 8px;
+  }
+
+  html[data-theme="dark"] .main-buttons-wrap {
+    background: #2d2d2d;
+  }
 }
 
 #root {
