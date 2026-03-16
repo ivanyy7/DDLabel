@@ -75,7 +75,8 @@
   }
 
   html[data-theme="dark"] .main-buttons-wrap {
-    background: #2d2d2d;
+    background: #3a3a3a;
+    border: 1px solid #444;
   }
 }
 
@@ -341,8 +342,9 @@ html[data-theme="light"] .theme-toggle-active {
 }
 
 html[data-theme="dark"] .card {
-  background: #2d2d2d;
+  background: #3a3a3a;
   color: #e8e8e8;
+  border: 1px solid #444;
 }
 
 .label-preview {
