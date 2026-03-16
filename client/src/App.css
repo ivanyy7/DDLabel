@@ -74,9 +74,14 @@
     border-radius: 8px;
   }
 
+  html[data-theme="dark"] .card {
+    background: #4a4a4a;
+    border: 1px solid #555;
+  }
+
   html[data-theme="dark"] .main-buttons-wrap {
-    background: #3a3a3a;
-    border: 1px solid #444;
+    background: #4a4a4a;
+    border: 1px solid #555;
   }
 }
 
