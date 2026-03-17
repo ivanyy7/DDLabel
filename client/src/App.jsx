@@ -369,12 +369,18 @@ function App() {
     setShelfStatus(null)
     try {
       const orderedIds = shelfItems.map((item) => item.id).filter(Boolean)
+      // #region agent log
+      fetch('http://127.0.0.1:7902/ingest/125efaa0-8f20-4b5f-a685-041b1c8d9b4d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'47e886'},body:JSON.stringify({sessionId:'47e886',runId:'pre-fix',hypothesisId:'C1',location:'client/src/App.jsx:handleShelfSaveOrder',message:'Saving reorder request',data:{apiBase:API_BASE,orderedCount:orderedIds.length,firstIds:orderedIds.slice(0,5),shelfVersion},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
       const res = await fetch(`${API_BASE}/api/shelf-reorder`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ orderedIds, version: shelfVersion }),
       })
       const data = await res.json().catch(() => ({}))
+      // #region agent log
+      fetch('http://127.0.0.1:7902/ingest/125efaa0-8f20-4b5f-a685-041b1c8d9b4d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'47e886'},body:JSON.stringify({sessionId:'47e886',runId:'pre-fix',hypothesisId:'C2',location:'client/src/App.jsx:handleShelfSaveOrder',message:'Reorder response',data:{status:res.status,ok:res.ok,responseKeys:Object.keys(data||{}),version:data?.version,conflict:data?.conflict,error:data?.error},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
       if (res.ok) {
         if (data.version != null) setShelfVersion(data.version)
         setShelfDirty(false)

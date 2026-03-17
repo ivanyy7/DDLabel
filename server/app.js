@@ -388,17 +388,27 @@ app.post('/api/shelf-reorder', async (req, res) => {
     const body = req.body || {};
     const orderedIds = body.orderedIds;
     const clientVersion = body.version != null ? Number(body.version) : null;
+    // #region agent log
+    fetch('http://127.0.0.1:7902/ingest/125efaa0-8f20-4b5f-a685-041b1c8d9b4d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'47e886'},body:JSON.stringify({sessionId:'47e886',runId:'pre-fix',hypothesisId:'S1',location:'server/app.js:/api/shelf-reorder',message:'Incoming reorder',data:{orderedIsArray:Array.isArray(orderedIds),orderedLen:Array.isArray(orderedIds)?orderedIds.length:0,firstIds:Array.isArray(orderedIds)?orderedIds.slice(0,5):[],clientVersion},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
     if (!Array.isArray(orderedIds) || orderedIds.length === 0) {
       res.status(400).json({ ok: false, error: 'Ожидается непустой массив orderedIds.' });
       return;
     }
     const result = await shelfStorage.reorder(orderedIds, clientVersion);
+    // #region agent log
+    fetch('http://127.0.0.1:7902/ingest/125efaa0-8f20-4b5f-a685-041b1c8d9b4d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'47e886'},body:JSON.stringify({sessionId:'47e886',runId:'pre-fix',hypothesisId:'S2',location:'server/app.js:/api/shelf-reorder',message:'Reorder result',data:{ok:result?.ok,conflict:result?.conflict,error:result?.error},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
     if (!result.ok) {
       const status = result.conflict ? 409 : 400;
       res.status(status).json({ ok: false, error: result.error, conflict: !!result.conflict });
       return;
     }
     const meta = await shelfStorage.getVersion();
+    const items = await shelfStorage.getAll();
+    // #region agent log
+    fetch('http://127.0.0.1:7902/ingest/125efaa0-8f20-4b5f-a685-041b1c8d9b4d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'47e886'},body:JSON.stringify({sessionId:'47e886',runId:'pre-fix',hypothesisId:'S3',location:'server/app.js:/api/shelf-reorder',message:'After reorder meta+head',data:{version:meta?.version,updatedAt:meta?.updatedAt,head:(items||[]).slice(0,5).map((i)=>({id:i.id,order:i.order,name:i.productName}))},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
     res.json({ ok: true, version: meta.version, updatedAt: meta.updatedAt });
   } catch (e) {
     console.error('[DDLabel] POST /api/shelf-reorder:', e.message);

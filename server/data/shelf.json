@@ -1,57 +1,81 @@
-[
-  {
-    "productName": "Бекон слайс",
-    "value": 4,
-    "unit": "days",
-    "labelText": "Бекон слайс"
-  },
-  {
-    "productName": "Сыр Россия",
-    "value": 4,
-    "unit": "days",
-    "labelText": "Сыр Россия"
-  },
-  {
-    "productName": "Сыр Пармезан",
-    "value": 4,
-    "unit": "days",
-    "labelText": "Сыр Пармезан"
-  },
-  {
-    "productName": "Соус Красный",
-    "value": 7,
-    "unit": "days",
-    "labelText": "с/с Красный"
-  },
-  {
-    "productName": "Соус Сливочный",
-    "value": 7,
-    "unit": "days",
-    "labelText": "с/с Сливочный"
-  },
-  {
-    "productName": "Грязные овощи",
-    "value": 7,
-    "unit": "days"
-  },
-  {
-    "productName": "Грязные фрукты",
-    "value": 7,
-    "unit": "days"
-  },
-  {
-    "productName": "Соус Чили",
-    "value": 7,
-    "unit": "days"
-  },
-  {
-    "productName": "Соус Жульен",
-    "value": 4,
-    "unit": "days"
-  },
-  {
-    "productName": "Соус Барбекю",
-    "value": 25,
-    "unit": "days"
-  }
-]
+{
+  "version": 2,
+  "updatedAt": "2026-03-17T12:52:05.286Z",
+  "items": [
+    {
+      "id": "mmum3ktin1w06",
+      "order": 0,
+      "productName": "Бекон слайс",
+      "value": 4,
+      "unit": "days",
+      "labelText": "Бекон слайс"
+    },
+    {
+      "id": "mmum3kti8k41w",
+      "order": 10,
+      "productName": "Сыр Россия",
+      "value": 4,
+      "unit": "days",
+      "labelText": "Сыр Россия"
+    },
+    {
+      "id": "mmum3ktipkyjf",
+      "order": 20,
+      "productName": "Сыр Пармезан",
+      "value": 4,
+      "unit": "days",
+      "labelText": "Сыр Пармезан"
+    },
+    {
+      "id": "mmum3kti4j9ws",
+      "order": 30,
+      "productName": "Соус Красный",
+      "value": 7,
+      "unit": "days",
+      "labelText": "с/с Красный"
+    },
+    {
+      "id": "mmum3ktic89ia",
+      "order": 40,
+      "productName": "Соус Сливочный",
+      "value": 7,
+      "unit": "days",
+      "labelText": "с/с Сливочный"
+    },
+    {
+      "id": "mmum3kti37v5n",
+      "order": 50,
+      "productName": "Грязные овощи",
+      "value": 7,
+      "unit": "days"
+    },
+    {
+      "id": "mmum3ktihqbg3",
+      "order": 60,
+      "productName": "Грязные фрукты",
+      "value": 7,
+      "unit": "days"
+    },
+    {
+      "id": "mmum3ktie9b4x",
+      "order": 70,
+      "productName": "Соус Чили",
+      "value": 7,
+      "unit": "days"
+    },
+    {
+      "id": "mmum3kti9kolp",
+      "order": 80,
+      "productName": "Соус Жульен",
+      "value": 4,
+      "unit": "days"
+    },
+    {
+      "id": "mmum3ktiuydfb",
+      "order": 90,
+      "productName": "Соус Барбекю",
+      "value": 25,
+      "unit": "days"
+    }
+  ]
+}
