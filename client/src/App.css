@@ -206,6 +206,12 @@
   html[data-theme="dark"] .shelf-modal-panel .shelf-table td {
     background: #2e2e2e;
   }
+
+  /* ПК: тёмная тема — подписи «Суток/Часов» в Справочнике */
+  html[data-theme="dark"] .card--shelf .shelf-label,
+  html[data-theme="dark"] .card--shelf .shelf-label-inline {
+    color: rgba(255, 255, 255, 0.87);
+  }
 }
 
 .app h1 {
