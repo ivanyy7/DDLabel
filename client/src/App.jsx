@@ -1,7 +1,44 @@
 import { useState, useRef, useEffect } from 'react'
 import { sendTsplViaBluetooth, isBluetoothPrintAvailable } from './bluetoothPrint.js'
 import { buildOfflineTsplBase64, parsePhraseTemplate, resolveExpiryWithShelf } from './offline/index.js'
+import {
+  DndContext,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  closestCenter,
+} from '@dnd-kit/core'
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+  arrayMove,
+} from '@dnd-kit/sortable'
+import { CSS as DndCSS } from '@dnd-kit/utilities'
 import './App.css'
+
+// Строка таблицы с поддержкой перетаскивания (только ПК)
+function SortableShelfRow({ item, shelfLoading, onEdit, onDelete, formatShelfDisplay }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id })
+  const style = {
+    transform: DndCSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.4 : 1,
+  }
+  return (
+    <tr ref={setNodeRef} style={style}>
+      <td className="shelf-drag-handle-cell">
+        <span className="shelf-drag-handle" {...attributes} {...listeners} title="Перетащить">⠿</span>
+      </td>
+      <td className="shelf-product-cell">{item.productName}</td>
+      <td className="shelf-expiry-cell">{formatShelfDisplay(item)}</td>
+      <td className="shelf-actions-cell">
+        <button type="button" onClick={() => onEdit(item)} disabled={shelfLoading}>Изменить</button>
+        <button type="button" className="shelf-del-btn" onClick={() => onDelete(item.productName)} disabled={shelfLoading} title="Удалить">DEL</button>
+      </td>
+    </tr>
+  )
+}
 
 const API_BASE = import.meta.env.VITE_API_URL || ''
 
@@ -134,6 +171,9 @@ function App() {
   const [shelfListOpen, setShelfListOpen] = useState(false)
   const [aliasesModalItem, setAliasesModalItem] = useState(null)
   const [aliasesModalValue, setAliasesModalValue] = useState('')
+  const [shelfDirty, setShelfDirty] = useState(false)
+  const [shelfVersion, setShelfVersion] = useState(null)
+  const [shelfReordering, setShelfReordering] = useState(false)
   const shelfAddRef = useRef(null)
 
   // Настройки превью этикетки и шаблоны
@@ -291,6 +331,8 @@ function App() {
       if (res.ok && Array.isArray(data.items)) {
         setShelfItems(data.items)
         setLocalShelf(data.items)
+        if (data.version != null) setShelfVersion(data.version)
+        setShelfDirty(false)
         if (showSuccessMessage) setShelfStatus({ type: 'ok', message: 'Справочник загружен с сервера' })
       } else {
         const local = getLocalShelf()
@@ -307,6 +349,47 @@ function App() {
       }
     } finally {
       setShelfLoading(false)
+    }
+  }
+
+  const handleShelfDragEnd = (event) => {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    setShelfItems((prev) => {
+      const oldIndex = prev.findIndex((item) => item.id === active.id)
+      const newIndex = prev.findIndex((item) => item.id === over.id)
+      if (oldIndex === -1 || newIndex === -1) return prev
+      return arrayMove(prev, oldIndex, newIndex)
+    })
+    setShelfDirty(true)
+  }
+
+  const handleShelfSaveOrder = async () => {
+    setShelfReordering(true)
+    setShelfStatus(null)
+    try {
+      const orderedIds = shelfItems.map((item) => item.id).filter(Boolean)
+      const res = await fetch(`${API_BASE}/api/shelf-reorder`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderedIds, version: shelfVersion }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) {
+        if (data.version != null) setShelfVersion(data.version)
+        setShelfDirty(false)
+        setShelfStatus({ type: 'ok', message: 'Порядок сохранён' })
+        await loadShelf()
+      } else if (res.status === 409) {
+        setShelfStatus({ type: 'error', message: 'Справочник изменился на сервере. Обновляем список…' })
+        await loadShelf()
+      } else {
+        setShelfStatus({ type: 'error', message: data.error || 'Ошибка сохранения порядка' })
+      }
+    } catch {
+      setShelfStatus({ type: 'error', message: 'Сервер недоступен. Порядок не сохранён.' })
+    } finally {
+      setShelfReordering(false)
     }
   }
 
@@ -1209,6 +1292,12 @@ function App() {
     }))
   }
 
+  const isPC = typeof window !== 'undefined' && window.innerWidth >= 1025
+
+  const dndSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
+  )
+
   return (
     <div className="app">
       <h1>DDLabel</h1>
@@ -1368,7 +1457,16 @@ function App() {
           <button onClick={handleShelfAdd} disabled={shelfLoading} className="shelf-add-btn">
             {shelfLoading ? '…' : 'Добавить'}
           </button>
-          <button type="button" onClick={() => setShelfListOpen(true)} className="shelf-list-btn">
+          <button
+            type="button"
+            onClick={() => {
+              // Важно: после добавления stable id на сервере нужно подтянуть свежий справочник,
+              // иначе localStorage может ещё содержать старый массив без id.
+              loadShelf()
+              setShelfListOpen(true)
+            }}
+            className="shelf-list-btn"
+          >
             Список продуктов
           </button>
           <button type="button" onClick={() => loadShelf(true)} disabled={shelfLoading} className="shelf-sync-btn" title="Загрузить справочник с сервера и сохранить локальную копию">
@@ -1880,33 +1978,74 @@ function App() {
           <div className="shelf-modal-panel card" onClick={(e) => e.stopPropagation()}>
             <div className="shelf-modal-header">
               <h2 className="card-title">Список продуктов</h2>
-              <button type="button" onClick={() => setShelfListOpen(false)} className="shelf-modal-close">Закрыть</button>
+              <div className="shelf-modal-header-actions">
+                {isPC && shelfDirty && (
+                  <button
+                    type="button"
+                    className="shelf-save-order-btn"
+                    onClick={handleShelfSaveOrder}
+                    disabled={shelfReordering || shelfLoading}
+                  >
+                    {shelfReordering ? '…' : 'Сохранить'}
+                  </button>
+                )}
+                <button type="button" onClick={() => setShelfListOpen(false)} className="shelf-modal-close">Закрыть</button>
+              </div>
             </div>
             {shelfLoading && !shelfItems.length ? (
               <p className="shelf-loading">Загрузка…</p>
             ) : (
               <div className="shelf-table-wrap">
-                <table className="shelf-table shelf-table-fixed">
-                  <thead>
-                    <tr>
-                      <th className="shelf-product-col">Продукт</th>
-                      <th className="shelf-expiry-col">Срок</th>
-                      <th className="shelf-actions-col" />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {shelfItems.map((item) => (
-                      <tr key={item.productName}>
-                        <td className="shelf-product-cell">{item.productName}</td>
-                        <td className="shelf-expiry-cell">{formatShelfDisplay(item)}</td>
-                        <td className="shelf-actions-cell">
-                          <button type="button" onClick={() => startEdit(item)} disabled={shelfLoading}>Изменить</button>
-                          <button type="button" className="shelf-del-btn" onClick={() => handleShelfDelete(item.productName)} disabled={shelfLoading} title="Удалить">DEL</button>
-                        </td>
+                {isPC && shelfItems.every((i) => i && i.id) ? (
+                  <DndContext sensors={dndSensors} collisionDetection={closestCenter} onDragEnd={handleShelfDragEnd}>
+                    <SortableContext items={shelfItems.map((i) => i.id)} strategy={verticalListSortingStrategy}>
+                      <table className="shelf-table shelf-table-fixed shelf-table-dnd">
+                        <thead>
+                          <tr>
+                            <th className="shelf-drag-col" />
+                            <th className="shelf-product-col">Продукт</th>
+                            <th className="shelf-expiry-col">Срок</th>
+                            <th className="shelf-actions-col" />
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {shelfItems.map((item) => (
+                            <SortableShelfRow
+                              key={item.id || item.productName}
+                              item={item}
+                              shelfLoading={shelfLoading}
+                              onEdit={startEdit}
+                              onDelete={handleShelfDelete}
+                              formatShelfDisplay={formatShelfDisplay}
+                            />
+                          ))}
+                        </tbody>
+                      </table>
+                    </SortableContext>
+                  </DndContext>
+                ) : (
+                  <table className="shelf-table shelf-table-fixed">
+                    <thead>
+                      <tr>
+                        <th className="shelf-product-col">Продукт</th>
+                        <th className="shelf-expiry-col">Срок</th>
+                        <th className="shelf-actions-col" />
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {shelfItems.map((item) => (
+                        <tr key={item.id || item.productName}>
+                          <td className="shelf-product-cell">{item.productName}</td>
+                          <td className="shelf-expiry-cell">{formatShelfDisplay(item)}</td>
+                          <td className="shelf-actions-cell">
+                            <button type="button" onClick={() => startEdit(item)} disabled={shelfLoading}>Изменить</button>
+                            <button type="button" className="shelf-del-btn" onClick={() => handleShelfDelete(item.productName)} disabled={shelfLoading} title="Удалить">DEL</button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
               </div>
             )}
             {shelfItems.length === 0 && !shelfLoading && (

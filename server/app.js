@@ -315,8 +315,8 @@ app.get('/api/health', (_req, res) => {
 
 app.get('/api/shelf', async (req, res) => {
   try {
-    const items = await shelfStorage.getAll();
-    res.json({ ok: true, items });
+    const [items, meta] = await Promise.all([shelfStorage.getAll(), shelfStorage.getVersion()]);
+    res.json({ ok: true, items, version: meta.version, updatedAt: meta.updatedAt });
   } catch (e) {
     res.status(500).json({ ok: false, error: e.message });
   }
@@ -350,8 +350,17 @@ app.post('/api/shelf-import', async (req, res) => {
       res.status(400).json({ ok: false, error: 'Ожидается непустой массив записей.' });
       return;
     }
-    const normalized = items.map((item) => {
-      const entry = { productName: String(item.productName || '').trim(), value: Number(item.value), unit: item.unit === 'days' ? 'days' : 'hours' };
+
+    // Генерируем id и order для каждого элемента при импорте
+    function genId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+    const normalized = items.map((item, idx) => {
+      const entry = {
+        id: item.id || genId(),
+        order: item.order != null ? item.order : idx * 10,
+        productName: String(item.productName || '').trim(),
+        value: Number(item.value),
+        unit: item.unit === 'days' ? 'days' : 'hours',
+      };
       if (item.labelText != null && String(item.labelText).trim()) entry.labelText = String(item.labelText).trim();
       if (Array.isArray(item.aliases) && item.aliases.length) entry.aliases = item.aliases.map((a) => String(a).trim()).filter(Boolean);
       return entry;
@@ -366,10 +375,33 @@ app.post('/api/shelf-import', async (req, res) => {
       }
     }
 
-    await shelfStorage.write(normalized);
+    await shelfStorage.writeFull({ version: 1, updatedAt: new Date().toISOString(), items: normalized });
     res.status(200).json({ ok: true, message: `Импортировано ${normalized.length} записей.`, count: normalized.length });
   } catch (e) {
     console.error('[DDLabel] POST /api/shelf-import:', e.message);
+    res.status(500).json({ ok: false, error: `Ошибка сервера: ${e.message}` });
+  }
+});
+
+app.post('/api/shelf-reorder', async (req, res) => {
+  try {
+    const body = req.body || {};
+    const orderedIds = body.orderedIds;
+    const clientVersion = body.version != null ? Number(body.version) : null;
+    if (!Array.isArray(orderedIds) || orderedIds.length === 0) {
+      res.status(400).json({ ok: false, error: 'Ожидается непустой массив orderedIds.' });
+      return;
+    }
+    const result = await shelfStorage.reorder(orderedIds, clientVersion);
+    if (!result.ok) {
+      const status = result.conflict ? 409 : 400;
+      res.status(status).json({ ok: false, error: result.error, conflict: !!result.conflict });
+      return;
+    }
+    const meta = await shelfStorage.getVersion();
+    res.json({ ok: true, version: meta.version, updatedAt: meta.updatedAt });
+  } catch (e) {
+    console.error('[DDLabel] POST /api/shelf-reorder:', e.message);
     res.status(500).json({ ok: false, error: `Ошибка сервера: ${e.message}` });
   }
 });
