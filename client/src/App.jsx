@@ -386,7 +386,6 @@ function App() {
         if (data.version != null) setShelfVersion(data.version)
         setShelfDirty(false)
         setShelfStatus({ type: 'ok', message: 'Порядок сохранён' })
-        await loadShelf()
       } else if (res.status === 409) {
         setShelfStatus({ type: 'error', message: 'Справочник изменился на сервере. Обновляем список…' })
         await loadShelf()
