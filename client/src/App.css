@@ -188,25 +188,6 @@
     white-space: nowrap;
   }
 
-  /* ПК: тёмная тема — модалка «Список продуктов» (читаемый текст в таблице) */
-  html[data-theme="dark"] .shelf-modal-panel .shelf-table {
-    color: rgba(255, 255, 255, 0.9);
-  }
-
-  html[data-theme="dark"] .shelf-modal-panel .shelf-table th {
-    background: #3a3a3a;
-    color: rgba(255, 255, 255, 0.92);
-  }
-
-  html[data-theme="dark"] .shelf-modal-panel .shelf-table th,
-  html[data-theme="dark"] .shelf-modal-panel .shelf-table td {
-    border-color: #555;
-  }
-
-  html[data-theme="dark"] .shelf-modal-panel .shelf-table td {
-    background: #2e2e2e;
-  }
-
   /* ПК: тёмная тема — подписи «Суток/Часов» в Справочнике */
   html[data-theme="dark"] .card--shelf .shelf-label,
   html[data-theme="dark"] .card--shelf .shelf-label-inline {
@@ -223,6 +204,25 @@
     border-color: #00662e;
     color: #fff;
   }
+}
+
+/* Тёмная тема — модалка «Список продуктов» (и ПК, и телефон) */
+html[data-theme="dark"] .shelf-modal-panel .shelf-table {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+html[data-theme="dark"] .shelf-modal-panel .shelf-table th {
+  background: #3a3a3a;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+html[data-theme="dark"] .shelf-modal-panel .shelf-table th,
+html[data-theme="dark"] .shelf-modal-panel .shelf-table td {
+  border-color: #555;
+}
+
+html[data-theme="dark"] .shelf-modal-panel .shelf-table td {
+  background: #2e2e2e;
 }
 
 .app h1 {
