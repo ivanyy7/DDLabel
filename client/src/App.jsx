@@ -326,7 +326,8 @@ function App() {
     setShelfLoading(true)
     setShelfStatus(null)
     try {
-      const res = await fetch(`${API_BASE}/api/shelf`)
+      const ts = Date.now()
+      const res = await fetch(`${API_BASE}/api/shelf?ts=${ts}`, { cache: 'no-store' })
       const data = await res.json().catch(() => ({}))
       if (res.ok && Array.isArray(data.items)) {
         setShelfItems(data.items)

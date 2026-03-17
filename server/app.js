@@ -315,6 +315,8 @@ app.get('/api/health', (_req, res) => {
 
 app.get('/api/shelf', async (req, res) => {
   try {
+    // Не кэшируем справочник: порядок может меняться (DnD reorder)
+    res.setHeader('Cache-Control', 'no-store');
     const [items, meta] = await Promise.all([shelfStorage.getAll(), shelfStorage.getVersion()]);
     res.json({ ok: true, items, version: meta.version, updatedAt: meta.updatedAt });
   } catch (e) {
