@@ -1,0 +1,154 @@
+param(
+  [string]$OutputDir = ".\chat-exports",
+  [string]$SourceDir = "",
+  [string]$EdgePath = "",
+  [int]$Limit = 0
+)
+
+$ErrorActionPreference = "Stop"
+
+function FirstNonEmpty {
+  param([object[]]$Values, [string]$Default = "")
+  foreach ($v in $Values) {
+    if ($null -ne $v) {
+      $s = [string]$v
+      if ($s.Trim().Length -gt 0) { return $s }
+    }
+  }
+  return $Default
+}
+
+function Get-WorkspaceKeyFromCwd {
+  param([string]$Cwd)
+  # Cursor uses folder names like: c-Work-DDLabel
+  $p = $Cwd.Trim()
+  if ($p.Length -ge 3 -and $p[1] -eq ':' -and ($p[2] -eq '\' -or $p[2] -eq '/')) {
+    $drive = $p.Substring(0,1).ToLower()
+    $rest = $p.Substring(3)
+    $rest = $rest -replace "[\\/]+", "-"
+    $rest = $rest.Trim("-")
+    return ($drive + "-" + $rest)
+  }
+  $p = $p -replace "[\\/]+", "-"
+  return $p.Trim("-")
+}
+
+function Resolve-AgentTranscriptsDir {
+  param([string]$SourceDir)
+
+  if ($SourceDir -and (Test-Path -LiteralPath $SourceDir)) {
+    return (Resolve-Path -LiteralPath $SourceDir).Path
+  }
+
+  $projectsRoot = Join-Path $env:USERPROFILE ".cursor\projects"
+  if (!(Test-Path -LiteralPath $projectsRoot)) {
+    throw "Cursor projects folder not found: $projectsRoot"
+  }
+
+  $cwd = (Get-Location).Path
+  $key = Get-WorkspaceKeyFromCwd -Cwd $cwd
+  $candidate = Join-Path (Join-Path $projectsRoot $key) "agent-transcripts"
+  if (Test-Path -LiteralPath $candidate) {
+    return (Resolve-Path -LiteralPath $candidate).Path
+  }
+
+  # fallback: if project name mismatch, pick most recent agent-transcripts
+  $fallback = Get-ChildItem -LiteralPath $projectsRoot -Directory -ErrorAction SilentlyContinue |
+    ForEach-Object { Join-Path $_.FullName "agent-transcripts" } |
+    Where-Object { Test-Path -LiteralPath $_ } |
+    Get-ChildItem -Filter "*.jsonl" -ErrorAction SilentlyContinue |
+    Sort-Object LastWriteTime -Descending |
+    Select-Object -First 1
+  if ($fallback) {
+    return (Split-Path -Parent $fallback.FullName)
+  }
+
+  throw "agent-transcripts not found automatically. Provide -SourceDir."
+}
+
+function Resolve-EdgePath {
+  param([string]$EdgePath)
+  if ($EdgePath) {
+    if (!(Test-Path -LiteralPath $EdgePath)) { throw "Edge not found at: $EdgePath" }
+    return (Resolve-Path -LiteralPath $EdgePath).Path
+  }
+
+  $roots = @()
+  if ($env:ProgramFiles) { $roots += $env:ProgramFiles }
+  if (${env:ProgramFiles(x86)}) { $roots += ${env:ProgramFiles(x86)} }
+  $roots = $roots | Select-Object -Unique
+
+  $candidates = foreach ($r in $roots) {
+    $edgeRoot = Join-Path $r "Microsoft\Edge\Application"
+    if (Test-Path -LiteralPath $edgeRoot) {
+      Get-ChildItem -LiteralPath $edgeRoot -Recurse -Filter "msedge.exe" -File -ErrorAction SilentlyContinue
+    }
+  }
+
+  $best = $candidates |
+    Sort-Object {
+      # try to parse version from path segment: ...\Application\146.0.3856.59\msedge.exe
+      $m = [regex]::Match($_.FullName, "\\Application\\(?<v>\d+\.\d+\.\d+\.\d+)\\msedge\.exe$", "IgnoreCase")
+      if ($m.Success) { [version]$m.Groups["v"].Value } else { [version]"0.0.0.0" }
+    } -Descending |
+    Select-Object -First 1
+
+  if (!$best) { throw "Edge (msedge.exe) not found. Provide -EdgePath." }
+  return $best.FullName
+}
+
+function HtmlEncode([string]$Text) {
+  return [System.Net.WebUtility]::HtmlEncode($Text)
+}
+
+$src = Resolve-AgentTranscriptsDir -SourceDir $SourceDir
+$edge = Resolve-EdgePath -EdgePath $EdgePath
+
+New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null
+$out = (Resolve-Path -LiteralPath $OutputDir).Path
+
+$files = Get-ChildItem -LiteralPath $src -Recurse -File -Filter "*.jsonl" | Sort-Object CreationTime
+if ($Limit -gt 0) { $files = $files | Select-Object -First $Limit }
+
+if (!$files -or $files.Count -eq 0) {
+  throw "No *.jsonl transcript files found in: $src"
+}
+
+$i = 1
+foreach ($f in $files) {
+  $n = "{0:d3}" -f $i
+  $md = Join-Path $out "$n.md"
+  $html = Join-Path $out "$n.html"
+  $pdf = Join-Path $out "$n.pdf"
+
+  $lines = Get-Content -LiteralPath $f.FullName -ErrorAction Stop
+  $blocks = New-Object System.Collections.Generic.List[string]
+  foreach ($ln in $lines) {
+    try {
+      $o = $ln | ConvertFrom-Json -ErrorAction Stop
+      $role = FirstNonEmpty -Values @($o.role, $o.author, $o.type) -Default "msg"
+      $text = FirstNonEmpty -Values @($o.content, $o.message, $o.text, ($o.data | Out-String)) -Default ""
+      $blocks.Add(("### {0}`r`n`r`n{1}`r`n" -f $role, $text))
+    } catch {
+      # ignore broken lines
+    }
+  }
+  if ($blocks.Count -eq 0) {
+    $blocks.Add(("### raw`r`n`r`n{0}" -f ($lines -join "`r`n")))
+  }
+
+  $mdText = ("# Chat {0}`r`nSource: {1}`r`nCreated: {2}`r`n`r`n" -f $n, $f.Name, $f.CreationTime) + ($blocks -join "`r`n---`r`n")
+  Set-Content -LiteralPath $md -Value $mdText -Encoding UTF8
+
+  $enc = HtmlEncode $mdText
+  $htmlText = "<!doctype html><meta charset='utf-8'><style>body{font-family:Segoe UI,Arial,sans-serif;margin:24px} pre{white-space:pre-wrap;word-break:break-word;font-size:12px;line-height:1.35}</style><pre>$enc</pre>"
+  Set-Content -LiteralPath $html -Value $htmlText -Encoding UTF8
+
+  $url = "file:///" + ($html -replace "\\","/")
+  & $edge --headless --disable-gpu --print-to-pdf="$pdf" "$url" | Out-Null
+
+  $i++
+}
+
+Write-Host "OK: exported $($i-1) chats to $out"
+
