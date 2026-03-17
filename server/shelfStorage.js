@@ -140,7 +140,7 @@ function writeFull(wrapper) {
       await put(BLOB_PATH, JSON.stringify(wrapper, null, 2), {
         access: 'public',
         allowOverwrite: true,
-        cacheControlMaxAge: 60,
+        cacheControlMaxAge: 0,
       });
     } catch (e) {
       console.error('[shelfStorage] Ошибка записи Blob:', e.message);
