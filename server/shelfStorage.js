@@ -31,7 +31,12 @@ function generateId() {
 }
 
 function normalizeName(name) {
-  return (name || '').toLowerCase().replace(/\s+/g, ' ').trim();
+  return (name || '')
+    .toLowerCase()
+    // В парсере дефис/тире заменяется на пробел, поэтому и здесь приводим к единому виду.
+    .replace(/[\u2010-\u2015\u2212\uFE58-\uFE63\-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function tokenizeName(name) {
@@ -183,37 +188,169 @@ async function getVersion() {
 }
 
 async function getByProductName(productName) {
+  // #region agent log pre-fix server product matching
+  fetch('http://127.0.0.1:7902/ingest/125efaa0-8f20-4b5f-a685-041b1c8d9b4d', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'fece24' },
+    body: JSON.stringify({
+      sessionId: 'fece24',
+      runId: 'pre-fix',
+      hypothesisId: 'H1_tokenSubsetEarlyReturn',
+      location: 'server/shelfStorage.js:getByProductName/start',
+      message: 'Start product matching in server shelfStorage',
+      data: {
+        productName,
+        key: normalizeName(productName),
+      },
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {})
+  // #endregion
+
   const key = normalizeName(productName);
   const items = await read();
   const exact = items.find((r) => normalizeName(r.productName) === key);
-  if (exact) return exact;
+  if (exact) {
+    // #region agent log pre-fix exact return
+    fetch('http://127.0.0.1:7902/ingest/125efaa0-8f20-4b5f-a685-041b1c8d9b4d', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'fece24' },
+      body: JSON.stringify({
+        sessionId: 'fece24',
+        runId: 'pre-fix',
+        hypothesisId: 'H1_tokenSubsetEarlyReturn',
+        location: 'server/shelfStorage.js:getByProductName/return:exact',
+        message: 'Matched by exact productName normalization',
+        data: { chosen: exact.productName, key },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {})
+    // #endregion
+    return exact;
+  }
   const byAlias = items.find((r) => {
     const aliases = r.aliases || [];
     return aliases.some((a) => normalizeName(a) === key);
   });
-  if (byAlias) return byAlias;
+  if (byAlias) {
+    // #region agent log pre-fix alias return
+    fetch('http://127.0.0.1:7902/ingest/125efaa0-8f20-4b5f-a685-041b1c8d9b4d', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'fece24' },
+      body: JSON.stringify({
+        sessionId: 'fece24',
+        runId: 'pre-fix',
+        hypothesisId: 'H1_tokenSubsetEarlyReturn',
+        location: 'server/shelfStorage.js:getByProductName/return:alias',
+        message: 'Matched by alias',
+        data: { chosen: byAlias.productName, key },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {})
+    // #endregion
+    return byAlias;
+  }
 
   const keyTokens = tokenizeName(productName);
   if (keyTokens.length) {
     for (const r of items) {
       const nameTokens = tokenizeName(r.productName);
       if (!nameTokens.length) continue;
+      // Для "Соус Чили" vs "Соус Чили-Манго" нельзя принимать совпадение по принципу:
+      // "имя кандидата - подмножество входа". Нужна строгая проверка: все токены ввода должны
+      // быть в кандидате.
       const allKeyInName = keyTokens.every((t) => nameTokens.includes(t));
-      const allNameInKey = nameTokens.every((t) => keyTokens.includes(t));
-      if (allKeyInName || allNameInKey) return r;
+      if (allKeyInName) {
+        // #region agent log pre-fix token overlap return
+        fetch('http://127.0.0.1:7902/ingest/125efaa0-8f20-4b5f-a685-041b1c8d9b4d', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'fece24' },
+          body: JSON.stringify({
+            sessionId: 'fece24',
+            runId: 'pre-fix',
+            hypothesisId: 'H1_tokenSubsetEarlyReturn',
+            location: 'server/shelfStorage.js:getByProductName/return:tokenOverlap',
+             message: 'Matched by token overlap (input tokens subset of candidate)',
+            data: {
+              chosen: r.productName,
+              keyTokens,
+              nameTokens,
+              allKeyInName,
+            },
+            timestamp: Date.now(),
+          }),
+        }).catch(() => {})
+        // #endregion
+        return r;
+      }
       const aliasTokensMatch = (r.aliases || []).some((alias) => {
         const aTokens = tokenizeName(alias);
         if (!aTokens.length) return false;
         return keyTokens.every((t) => aTokens.includes(t)) || aTokens.every((t) => keyTokens.includes(t));
       });
-      if (aliasTokensMatch) return r;
+      if (aliasTokensMatch) {
+        // #region agent log pre-fix aliasTokensMatch return
+        fetch('http://127.0.0.1:7902/ingest/125efaa0-8f20-4b5f-a685-041b1c8d9b4d', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'fece24' },
+          body: JSON.stringify({
+            sessionId: 'fece24',
+            runId: 'pre-fix',
+            hypothesisId: 'H1_tokenSubsetEarlyReturn',
+            location: 'server/shelfStorage.js:getByProductName/return:aliasTokensMatch',
+            message: 'Matched by alias token overlap',
+            data: { chosen: r.productName, keyTokens },
+            timestamp: Date.now(),
+          }),
+        }).catch(() => {})
+        // #endregion
+        return r;
+      }
     }
   }
 
   for (const r of items) {
     const n = normalizeName(r.productName);
-    if (key.startsWith(n) || key.includes(n)) return r;
+    if (key.startsWith(n) || key.includes(n)) {
+      // substring fallback слишком широкий: например "соус чили" внутри "соус чили манго".
+      // Разрешаем его только если количество токенов совпадает и все токены кандидата есть во входе.
+      const nameTokens = tokenizeName(r.productName);
+      const allNameTokensInKey = nameTokens.every((t) => keyTokens.includes(t));
+      if (!allNameTokensInKey || nameTokens.length !== keyTokens.length) continue;
+
+      // #region agent log pre-fix substring return
+      fetch('http://127.0.0.1:7902/ingest/125efaa0-8f20-4b5f-a685-041b1c8d9b4d', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'fece24' },
+        body: JSON.stringify({
+          sessionId: 'fece24',
+          runId: 'pre-fix',
+          hypothesisId: 'H3_substringFallback',
+          location: 'server/shelfStorage.js:getByProductName/return:substring',
+          message: 'Matched by substring fallback',
+          data: { chosen: r.productName, key, normalizedEntry: n },
+          timestamp: Date.now(),
+        }),
+      }).catch(() => {})
+      // #endregion
+      return r;
+    }
   }
+  // #region agent log pre-fix no match
+  fetch('http://127.0.0.1:7902/ingest/125efaa0-8f20-4b5f-a685-041b1c8d9b4d', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'fece24' },
+    body: JSON.stringify({
+      sessionId: 'fece24',
+      runId: 'pre-fix',
+      hypothesisId: 'H2_hyphenNormalization',
+      location: 'server/shelfStorage.js:getByProductName/return:none',
+      message: 'No product matched in server shelfStorage',
+      data: { productName, key, keyTokens },
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {})
+  // #endregion
   return null;
 }
 

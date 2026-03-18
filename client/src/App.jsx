@@ -573,6 +573,22 @@ function App() {
     // Офлайн-режим (п. 8.6): парсер и TSPL на клиенте, печать по Bluetooth
     if (workOffline) {
       try {
+        // #region agent log pre-fix path selection (workOffline)
+        fetch('http://127.0.0.1:7902/ingest/125efaa0-8f20-4b5f-a685-041b1c8d9b4d', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'fece24' },
+          body: JSON.stringify({
+            sessionId: 'fece24',
+            runId: 'pre-fix',
+            hypothesisId: 'H0_offlineVsFallback',
+            location: 'client/src/App.jsx:sendPhraseToPrint/workOffline',
+            message: 'Using local offline parsing + shelf resolution for printing',
+            data: { trimmedSample: trimmed.slice(0, 80), labelMode: currentMode },
+            timestamp: Date.now(),
+          }),
+        }).catch(() => {})
+        // #endregion
+
         const localShelf = getLocalShelf()
         const result = buildOfflineTsplBase64(trimmed, localShelf, currentMode === 'single')
         if (!result.ok) {
@@ -650,6 +666,22 @@ function App() {
       // Fallback (п. 8.6): при сбое сети — парсер и справочник на клиенте, печать по Bluetooth
       if (isBluetoothPrintAvailable()) {
         try {
+          // #region agent log pre-fix path selection (fallback to offline)
+          fetch('http://127.0.0.1:7902/ingest/125efaa0-8f20-4b5f-a685-041b1c8d9b4d', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'fece24' },
+            body: JSON.stringify({
+              sessionId: 'fece24',
+              runId: 'pre-fix',
+              hypothesisId: 'H0_offlineVsFallback',
+              location: 'client/src/App.jsx:sendPhraseToPrint/fallback:serverError',
+              message: 'Server path failed; falling back to local offline parsing + shelf resolution',
+              data: { trimmedSample: trimmed.slice(0, 80), labelMode: currentMode },
+              timestamp: Date.now(),
+            }),
+          }).catch(() => {})
+          // #endregion
+
           const localShelf = getLocalShelf()
           const result = buildOfflineTsplBase64(trimmed, localShelf, currentMode === 'single')
           if (result.ok) {

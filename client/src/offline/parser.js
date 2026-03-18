@@ -114,6 +114,23 @@ export function parsePhraseTemplate(phrase, refDate = new Date()) {
 
     const year = refDate.getFullYear()
     const madeAt = new Date(year, month - 1, day, hours, minutes, 0, 0)
+
+    // #region agent log pre-fix hyphen parsing -> productName mismatch
+    fetch('http://127.0.0.1:7902/ingest/125efaa0-8f20-4b5f-a685-041b1c8d9b4d', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'fece24' },
+      body: JSON.stringify({
+        sessionId: 'fece24',
+        runId: 'pre-fix',
+        hypothesisId: 'H1_hyphenNormalization',
+        location: 'client/src/offline/parser.js:parsePhraseTemplate:tryParseTail/success',
+        message: 'Parsed productPart after normalization (hyphen may be replaced)',
+        data: { normalized, productPart, tail: tail.join(' ') },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {})
+    // #endregion
+
     return { productName: productPart, madeAt }
   }
 

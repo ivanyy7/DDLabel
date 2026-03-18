@@ -194,6 +194,22 @@ function parsePhraseTemplate(phrase, refDate = new Date()) {
 
     const year = refDate.getFullYear();
     const madeAt = new Date(year, month - 1, day, hours, minutes, 0, 0);
+    // #region agent log pre-fix parsed productName
+    fetch('http://127.0.0.1:7902/ingest/125efaa0-8f20-4b5f-a685-041b1c8d9b4d', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'fece24' },
+      body: JSON.stringify({
+        sessionId: 'fece24',
+        runId: 'pre-fix',
+        hypothesisId: 'H2_serverParsePhraseProduct',
+        location: 'server/parsing/template/templateParser.js:tryParseTail/return',
+        message: 'Parsed productName from phrase (template parser)',
+        data: { phrase, normalized, count, productName: productPart },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
+
     return { productName: productPart, madeAt };
   }
 
