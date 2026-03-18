@@ -198,9 +198,7 @@ app.post('/api/print', async (req, res) => {
 
 /** Возвращает TSPL в base64 (CP866) для печати по Bluetooth с телефона. */
 app.post('/api/print-tspl', async (req, res) => {
-  // #region agent log
-  const fs=require('fs'),_dlS=(msg,data)=>{try{fs.appendFileSync('debug-d04e56.log',JSON.stringify({sessionId:'d04e56',location:'app.js:/api/print-tspl',message:msg,data,timestamp:Date.now(),hypothesisId:'H4'})+'\n');}catch(e){}};
-  // #endregion
+  const _dlS = () => {}
   const body = req.body || {};
   const singleMode = body.singleMode === true;
   let productName, madeAt, expiresAt;
@@ -213,7 +211,7 @@ app.post('/api/print-tspl', async (req, res) => {
     const parsed = parsePhraseWithMode(phrase);
     if (parsed.error) {
       // #region agent log
-      _dlS('parse error',{error:parsed.error,phrase});
+        _dlS('parse error',{error:parsed.error,phrase});
       // #endregion
       res.status(400).json({ ok: false, error: `${parsed.error} Вы сказали: «${phrase}».` });
       return;
@@ -221,7 +219,7 @@ app.post('/api/print-tspl', async (req, res) => {
     productName = parsed.productName;
     madeAt = parsed.madeAt;
     // #region agent log
-    _dlS('parsed ok',{productName,madeAt:String(madeAt),isMadeAtDate:madeAt instanceof Date});
+      _dlS('parsed ok',{productName,madeAt:String(madeAt),isMadeAtDate:madeAt instanceof Date});
     // #endregion
     if (singleMode) {
       expiresAt = madeAt;
@@ -229,7 +227,7 @@ app.post('/api/print-tspl', async (req, res) => {
       const resolved = await resolveExpiry(parsed);
       if (resolved.error) {
         // #region agent log
-        _dlS('resolveExpiry error',{error:resolved.error});
+          _dlS('resolveExpiry error',{error:resolved.error});
         // #endregion
         res.status(400).json({ ok: false, error: `${resolved.error} Вы сказали: «${phrase}».` });
         return;
@@ -390,17 +388,11 @@ app.post('/api/shelf-reorder', async (req, res) => {
     const body = req.body || {};
     const orderedIds = body.orderedIds;
     const clientVersion = body.version != null ? Number(body.version) : null;
-    // #region agent log
-    fetch('http://127.0.0.1:7902/ingest/125efaa0-8f20-4b5f-a685-041b1c8d9b4d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'47e886'},body:JSON.stringify({sessionId:'47e886',runId:'pre-fix',hypothesisId:'S1',location:'server/app.js:/api/shelf-reorder',message:'Incoming reorder',data:{orderedIsArray:Array.isArray(orderedIds),orderedLen:Array.isArray(orderedIds)?orderedIds.length:0,firstIds:Array.isArray(orderedIds)?orderedIds.slice(0,5):[],clientVersion},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     if (!Array.isArray(orderedIds) || orderedIds.length === 0) {
       res.status(400).json({ ok: false, error: 'Ожидается непустой массив orderedIds.' });
       return;
     }
     const result = await shelfStorage.reorder(orderedIds, clientVersion);
-    // #region agent log
-    fetch('http://127.0.0.1:7902/ingest/125efaa0-8f20-4b5f-a685-041b1c8d9b4d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'47e886'},body:JSON.stringify({sessionId:'47e886',runId:'pre-fix',hypothesisId:'S2',location:'server/app.js:/api/shelf-reorder',message:'Reorder result',data:{ok:result?.ok,conflict:result?.conflict,error:result?.error},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     if (!result.ok) {
       const status = result.conflict ? 409 : 400;
       res.status(status).json({ ok: false, error: result.error, conflict: !!result.conflict });
@@ -408,9 +400,6 @@ app.post('/api/shelf-reorder', async (req, res) => {
     }
     const meta = await shelfStorage.getVersion();
     const items = await shelfStorage.getAll();
-    // #region agent log
-    fetch('http://127.0.0.1:7902/ingest/125efaa0-8f20-4b5f-a685-041b1c8d9b4d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'47e886'},body:JSON.stringify({sessionId:'47e886',runId:'pre-fix',hypothesisId:'S3',location:'server/app.js:/api/shelf-reorder',message:'After reorder meta+head',data:{version:meta?.version,updatedAt:meta?.updatedAt,head:(items||[]).slice(0,5).map((i)=>({id:i.id,order:i.order,name:i.productName}))},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     res.json({ ok: true, version: meta.version, updatedAt: meta.updatedAt });
   } catch (e) {
     console.error('[DDLabel] POST /api/shelf-reorder:', e.message);

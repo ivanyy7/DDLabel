@@ -370,18 +370,12 @@ function App() {
     setShelfStatus(null)
     try {
       const orderedIds = shelfItems.map((item) => item.id).filter(Boolean)
-      // #region agent log
-      fetch('http://127.0.0.1:7902/ingest/125efaa0-8f20-4b5f-a685-041b1c8d9b4d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'47e886'},body:JSON.stringify({sessionId:'47e886',runId:'pre-fix',hypothesisId:'C1',location:'client/src/App.jsx:handleShelfSaveOrder',message:'Saving reorder request',data:{apiBase:API_BASE,orderedCount:orderedIds.length,firstIds:orderedIds.slice(0,5),shelfVersion},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
       const res = await fetch(`${API_BASE}/api/shelf-reorder`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ orderedIds, version: shelfVersion }),
       })
       const data = await res.json().catch(() => ({}))
-      // #region agent log
-      fetch('http://127.0.0.1:7902/ingest/125efaa0-8f20-4b5f-a685-041b1c8d9b4d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'47e886'},body:JSON.stringify({sessionId:'47e886',runId:'pre-fix',hypothesisId:'C2',location:'client/src/App.jsx:handleShelfSaveOrder',message:'Reorder response',data:{status:res.status,ok:res.ok,responseKeys:Object.keys(data||{}),version:data?.version,conflict:data?.conflict,error:data?.error},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
       if (res.ok) {
         if (data.version != null) setShelfVersion(data.version)
         setShelfDirty(false)
@@ -401,7 +395,6 @@ function App() {
 
   useEffect(() => { loadShelf() }, [])
 
-  // #region agent log
   useEffect(() => {
     if (activeTab !== 'shelf' || !shelfAddRef.current) return
     const el = shelfAddRef.current
@@ -427,14 +420,12 @@ function App() {
           addBtnGridRow: csAdd.gridRow,
           pcMediaExpected: viewportW >= 1025
         }
-        fetch('http://127.0.0.1:7902/ingest/125efaa0-8f20-4b5f-a685-041b1c8d9b4d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'8f8d06'},body:JSON.stringify({sessionId:'8f8d06',location:'App.jsx:shelf-align',message:'shelf layout debug',data,timestamp:Date.now()})}).catch(()=>{})
       })
     }
     run()
     const t = setTimeout(run, 100)
     return () => clearTimeout(t)
   }, [activeTab])
-  // #endregion
 
   // Автообновление локальной копии справочника при появлении сети (п. 8.4)
   useEffect(() => {
@@ -573,22 +564,6 @@ function App() {
     // Офлайн-режим (п. 8.6): парсер и TSPL на клиенте, печать по Bluetooth
     if (workOffline) {
       try {
-        // #region agent log pre-fix path selection (workOffline)
-        fetch('http://127.0.0.1:7902/ingest/125efaa0-8f20-4b5f-a685-041b1c8d9b4d', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'fece24' },
-          body: JSON.stringify({
-            sessionId: 'fece24',
-            runId: 'pre-fix',
-            hypothesisId: 'H0_offlineVsFallback',
-            location: 'client/src/App.jsx:sendPhraseToPrint/workOffline',
-            message: 'Using local offline parsing + shelf resolution for printing',
-            data: { trimmedSample: trimmed.slice(0, 80), labelMode: currentMode },
-            timestamp: Date.now(),
-          }),
-        }).catch(() => {})
-        // #endregion
-
         const localShelf = getLocalShelf()
         const result = buildOfflineTsplBase64(trimmed, localShelf, currentMode === 'single')
         if (!result.ok) {
@@ -666,22 +641,6 @@ function App() {
       // Fallback (п. 8.6): при сбое сети — парсер и справочник на клиенте, печать по Bluetooth
       if (isBluetoothPrintAvailable()) {
         try {
-          // #region agent log pre-fix path selection (fallback to offline)
-          fetch('http://127.0.0.1:7902/ingest/125efaa0-8f20-4b5f-a685-041b1c8d9b4d', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'fece24' },
-            body: JSON.stringify({
-              sessionId: 'fece24',
-              runId: 'pre-fix',
-              hypothesisId: 'H0_offlineVsFallback',
-              location: 'client/src/App.jsx:sendPhraseToPrint/fallback:serverError',
-              message: 'Server path failed; falling back to local offline parsing + shelf resolution',
-              data: { trimmedSample: trimmed.slice(0, 80), labelMode: currentMode },
-              timestamp: Date.now(),
-            }),
-          }).catch(() => {})
-          // #endregion
-
           const localShelf = getLocalShelf()
           const result = buildOfflineTsplBase64(trimmed, localShelf, currentMode === 'single')
           if (result.ok) {

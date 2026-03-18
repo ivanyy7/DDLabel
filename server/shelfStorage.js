@@ -188,44 +188,10 @@ async function getVersion() {
 }
 
 async function getByProductName(productName) {
-  // #region agent log pre-fix server product matching
-  fetch('http://127.0.0.1:7902/ingest/125efaa0-8f20-4b5f-a685-041b1c8d9b4d', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'fece24' },
-    body: JSON.stringify({
-      sessionId: 'fece24',
-      runId: 'pre-fix',
-      hypothesisId: 'H1_tokenSubsetEarlyReturn',
-      location: 'server/shelfStorage.js:getByProductName/start',
-      message: 'Start product matching in server shelfStorage',
-      data: {
-        productName,
-        key: normalizeName(productName),
-      },
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {})
-  // #endregion
-
   const key = normalizeName(productName);
   const items = await read();
   const exact = items.find((r) => normalizeName(r.productName) === key);
   if (exact) {
-    // #region agent log pre-fix exact return
-    fetch('http://127.0.0.1:7902/ingest/125efaa0-8f20-4b5f-a685-041b1c8d9b4d', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'fece24' },
-      body: JSON.stringify({
-        sessionId: 'fece24',
-        runId: 'pre-fix',
-        hypothesisId: 'H1_tokenSubsetEarlyReturn',
-        location: 'server/shelfStorage.js:getByProductName/return:exact',
-        message: 'Matched by exact productName normalization',
-        data: { chosen: exact.productName, key },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {})
-    // #endregion
     return exact;
   }
   const byAlias = items.find((r) => {
@@ -233,21 +199,6 @@ async function getByProductName(productName) {
     return aliases.some((a) => normalizeName(a) === key);
   });
   if (byAlias) {
-    // #region agent log pre-fix alias return
-    fetch('http://127.0.0.1:7902/ingest/125efaa0-8f20-4b5f-a685-041b1c8d9b4d', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'fece24' },
-      body: JSON.stringify({
-        sessionId: 'fece24',
-        runId: 'pre-fix',
-        hypothesisId: 'H1_tokenSubsetEarlyReturn',
-        location: 'server/shelfStorage.js:getByProductName/return:alias',
-        message: 'Matched by alias',
-        data: { chosen: byAlias.productName, key },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {})
-    // #endregion
     return byAlias;
   }
 
@@ -261,26 +212,6 @@ async function getByProductName(productName) {
       // быть в кандидате.
       const allKeyInName = keyTokens.every((t) => nameTokens.includes(t));
       if (allKeyInName) {
-        // #region agent log pre-fix token overlap return
-        fetch('http://127.0.0.1:7902/ingest/125efaa0-8f20-4b5f-a685-041b1c8d9b4d', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'fece24' },
-          body: JSON.stringify({
-            sessionId: 'fece24',
-            runId: 'pre-fix',
-            hypothesisId: 'H1_tokenSubsetEarlyReturn',
-            location: 'server/shelfStorage.js:getByProductName/return:tokenOverlap',
-             message: 'Matched by token overlap (input tokens subset of candidate)',
-            data: {
-              chosen: r.productName,
-              keyTokens,
-              nameTokens,
-              allKeyInName,
-            },
-            timestamp: Date.now(),
-          }),
-        }).catch(() => {})
-        // #endregion
         return r;
       }
       const aliasTokensMatch = (r.aliases || []).some((alias) => {
@@ -289,21 +220,6 @@ async function getByProductName(productName) {
         return keyTokens.every((t) => aTokens.includes(t)) || aTokens.every((t) => keyTokens.includes(t));
       });
       if (aliasTokensMatch) {
-        // #region agent log pre-fix aliasTokensMatch return
-        fetch('http://127.0.0.1:7902/ingest/125efaa0-8f20-4b5f-a685-041b1c8d9b4d', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'fece24' },
-          body: JSON.stringify({
-            sessionId: 'fece24',
-            runId: 'pre-fix',
-            hypothesisId: 'H1_tokenSubsetEarlyReturn',
-            location: 'server/shelfStorage.js:getByProductName/return:aliasTokensMatch',
-            message: 'Matched by alias token overlap',
-            data: { chosen: r.productName, keyTokens },
-            timestamp: Date.now(),
-          }),
-        }).catch(() => {})
-        // #endregion
         return r;
       }
     }
@@ -317,40 +233,9 @@ async function getByProductName(productName) {
       const nameTokens = tokenizeName(r.productName);
       const allNameTokensInKey = nameTokens.every((t) => keyTokens.includes(t));
       if (!allNameTokensInKey || nameTokens.length !== keyTokens.length) continue;
-
-      // #region agent log pre-fix substring return
-      fetch('http://127.0.0.1:7902/ingest/125efaa0-8f20-4b5f-a685-041b1c8d9b4d', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'fece24' },
-        body: JSON.stringify({
-          sessionId: 'fece24',
-          runId: 'pre-fix',
-          hypothesisId: 'H3_substringFallback',
-          location: 'server/shelfStorage.js:getByProductName/return:substring',
-          message: 'Matched by substring fallback',
-          data: { chosen: r.productName, key, normalizedEntry: n },
-          timestamp: Date.now(),
-        }),
-      }).catch(() => {})
-      // #endregion
       return r;
     }
   }
-  // #region agent log pre-fix no match
-  fetch('http://127.0.0.1:7902/ingest/125efaa0-8f20-4b5f-a685-041b1c8d9b4d', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'fece24' },
-    body: JSON.stringify({
-      sessionId: 'fece24',
-      runId: 'pre-fix',
-      hypothesisId: 'H2_hyphenNormalization',
-      location: 'server/shelfStorage.js:getByProductName/return:none',
-      message: 'No product matched in server shelfStorage',
-      data: { productName, key, keyTokens },
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {})
-  // #endregion
   return null;
 }
 

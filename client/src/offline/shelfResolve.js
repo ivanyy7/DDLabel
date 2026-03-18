@@ -37,62 +37,10 @@ export function getByProductName(shelfItems, productName) {
     return aliases.some((a) => normalizeName(a) === key)
   })
 
-  // #region agent log pre-fix product matching
-  fetch('http://127.0.0.1:7902/ingest/125efaa0-8f20-4b5f-a685-041b1c8d9b4d', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'fece24' },
-    body: JSON.stringify({
-      sessionId: 'fece24',
-      runId: 'pre-fix',
-      hypothesisId: 'H2_getByProductNameSelection',
-      location: 'client/src/offline/shelfResolve.js:getByProductName/start',
-      message: 'Start matching product in local shelf',
-      data: {
-        productName,
-        key,
-        keyTokens,
-        exact: exact?.productName ?? null,
-        byAlias: byAlias?.productName ?? null,
-      },
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {})
-  // #endregion
-
   if (exact) {
-    // #region agent log pre-fix exact choice
-    fetch('http://127.0.0.1:7902/ingest/125efaa0-8f20-4b5f-a685-041b1c8d9b4d', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'fece24' },
-      body: JSON.stringify({
-        sessionId: 'fece24',
-        runId: 'pre-fix',
-        hypothesisId: 'H2_getByProductNameSelection',
-        location: 'client/src/offline/shelfResolve.js:getByProductName/return:exact',
-        message: 'Matched by exact name after normalization',
-        data: { productName: exact.productName, key, keyTokens },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {})
-    // #endregion
     return exact
   }
   if (byAlias) {
-    // #region agent log pre-fix alias choice
-    fetch('http://127.0.0.1:7902/ingest/125efaa0-8f20-4b5f-a685-041b1c8d9b4d', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'fece24' },
-      body: JSON.stringify({
-        sessionId: 'fece24',
-        runId: 'pre-fix',
-        hypothesisId: 'H2_getByProductNameSelection',
-        location: 'client/src/offline/shelfResolve.js:getByProductName/return:alias',
-        message: 'Matched by alias after normalization',
-        data: { productName: byAlias.productName, key, keyTokens },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {})
-    // #endregion
     return byAlias
   }
 
@@ -105,21 +53,6 @@ export function getByProductName(shelfItems, productName) {
       // быть в кандидате.
       const allKeyInName = keyTokens.every((t) => nameTokens.includes(t))
       if (allKeyInName) {
-        // #region agent log pre-fix token overlap choice
-        fetch('http://127.0.0.1:7902/ingest/125efaa0-8f20-4b5f-a685-041b1c8d9b4d', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'fece24' },
-          body: JSON.stringify({
-            sessionId: 'fece24',
-            runId: 'pre-fix',
-            hypothesisId: 'H2_getByProductNameSelection',
-            location: 'client/src/offline/shelfResolve.js:getByProductName/return:tokenOverlap',
-            message: 'Matched by token overlap (contains all tokens from key/name)',
-            data: { chosen: r.productName, key, keyTokens },
-            timestamp: Date.now(),
-          }),
-        }).catch(() => {})
-        // #endregion
         return r
       }
       const aliasTokensMatch = (r.aliases || []).some((alias) => {
@@ -128,21 +61,6 @@ export function getByProductName(shelfItems, productName) {
         return keyTokens.every((t) => aTokens.includes(t)) || aTokens.every((t) => keyTokens.includes(t))
       })
       if (aliasTokensMatch) {
-        // #region agent log pre-fix aliasTokensMatch choice
-        fetch('http://127.0.0.1:7902/ingest/125efaa0-8f20-4b5f-a685-041b1c8d9b4d', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'fece24' },
-          body: JSON.stringify({
-            sessionId: 'fece24',
-            runId: 'pre-fix',
-            hypothesisId: 'H2_getByProductNameSelection',
-            location: 'client/src/offline/shelfResolve.js:getByProductName/return:aliasTokensMatch',
-            message: 'Matched by alias token overlap',
-            data: { chosen: r.productName, key, keyTokens },
-            timestamp: Date.now(),
-          }),
-        }).catch(() => {})
-        // #endregion
         return r
       }
     }
@@ -156,41 +74,9 @@ export function getByProductName(shelfItems, productName) {
       const nameTokens = tokenizeName(r.productName)
       const allNameTokensInKey = nameTokens.every((t) => keyTokens.includes(t))
       if (!allNameTokensInKey || nameTokens.length !== keyTokens.length) continue
-
-      // #region agent log pre-fix substring fallback choice
-      fetch('http://127.0.0.1:7902/ingest/125efaa0-8f20-4b5f-a685-041b1c8d9b4d', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'fece24' },
-        body: JSON.stringify({
-          sessionId: 'fece24',
-          runId: 'pre-fix',
-          hypothesisId: 'H2_getByProductNameSelection',
-          location: 'client/src/offline/shelfResolve.js:getByProductName/return:substring',
-          message: 'Matched by substring fallback',
-          data: { chosen: r.productName, key, normalizedEntry: n },
-          timestamp: Date.now(),
-        }),
-      }).catch(() => {})
-      // #endregion
       return r
     }
   }
-
-  // #region agent log pre-fix no match
-  fetch('http://127.0.0.1:7902/ingest/125efaa0-8f20-4b5f-a685-041b1c8d9b4d', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'fece24' },
-    body: JSON.stringify({
-      sessionId: 'fece24',
-      runId: 'pre-fix',
-      hypothesisId: 'H2_getByProductNameSelection',
-      location: 'client/src/offline/shelfResolve.js:getByProductName/return:none',
-      message: 'No product matched in local shelf',
-      data: { productName, key, keyTokens },
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {})
-  // #endregion
 
   return null
 }

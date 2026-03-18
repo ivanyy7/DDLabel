@@ -19,9 +19,8 @@ const ALT_WRITE_CHARS = [
   '0000ae01-0000-1000-8000-00805f9b34fb',
 ]
 
-// #region agent log
-const _dl = (msg, data) => fetch('http://127.0.0.1:7902/ingest/125efaa0-8f20-4b5f-a685-041b1c8d9b4d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'d04e56'},body:JSON.stringify({sessionId:'d04e56',location:'bluetoothPrint.js',message:msg,data,timestamp:Date.now(),hypothesisId:'H7'})}).catch(()=>{});
-// #endregion
+// Телеметрия для отладки отключена в проде.
+const _dl = () => {}
 
 let _cachedDevice = null
 
